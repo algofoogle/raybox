@@ -37,7 +37,7 @@ Key parts:
 
 # Visual simulation with Verilator
 
-Make sure SDL2 dev packagers are installed:
+Make sure SDL2 dev packages are installed:
 ```bash
 sudo apt-get update
 sudo apt install libsdl2-dev libsdl2-ttf-dev
@@ -62,18 +62,12 @@ make clean sim_random   # ...unpredictable random values each time.
 
 ## Virtual VGA display
 
-**Verilator screenshot TBD**
+![Verilator running Raybox VGA simulation](./doc/verilator-raybox.png)
 
 **NOTES** about what you see in the screenshot above:
 *   The background is grey and not black because the region that got rendered
     between SDL refreshes gets its lower bits set to visually show what's being updated
     each time. To toggle this, use the <kbd>H</kbd> key.
-*   Purple bars are a visualisation of when the speaker signal is on. This is
-    hard to simulate especially when the video speed isn't realtime, and visualisation
-    of exactly when it turns on (and off) in relation to the video rendering is probably
-    more useful anyway. I think I could probably get away with an audio sim just buffering
-    until the end of the frame, and then playing it in realtime when VSYNC arrives.
-    This should at least "feel" right and sound at the right tone.
 *   Regions outside the main display area are typically called "overscan" and allow us
     to visualise the "front porch", "sync", and "back porch" signals for each of
     HSYNC (red) and VSYNC (blue).
