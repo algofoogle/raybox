@@ -146,7 +146,8 @@ void process_sdl_events() {
     } else if (SDL_KEYDOWN == e.type) {
       switch (e.key.keysym.sym) {
         case SDLK_q:
-          // Q key pressed, for Quit
+        case SDLK_ESCAPE:
+          // ESC or Q key pressed, for Quit
           gQuit = true;
           break;
         case SDLK_SPACE:
