@@ -85,7 +85,7 @@ make clean sim_random   # ...unpredictable random values each time.
 |---------------|----------|
 | Space         | Pause simulator |
 | H             | Toggle refresh highlight |
-| Q             | Quit     |
+| Q or Escape   | Quit     |
 | R             | Reset    |
 | V             | Toggle VSYNC logging |
 | X             | Turn on eXamine mode: Pause simulator if last frame had any tone generation |
