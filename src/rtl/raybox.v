@@ -17,29 +17,36 @@
 `default_nettype none
 `timescale 1ns / 1ps
 
-/* verilator lint_off UNOPT */
 module raybox(
     input clk,
     input reset,
-    output [1:0] red,
+    output [1:0] red,   // Each of R, G, and B are 2bpp, for a total of 64 possible colours.
     output [1:0] green,
     output [1:0] blue,
     output hsync,
     output vsync,
     output speaker
 );
+
+    localparam SCREEN_HEIGHT = 480;
+    localparam HALF_HEIGHT = SCREEN_HEIGHT>>1;
+
+    // Outputs from vga_sync:
     wire [9:0] h;
     wire [9:0] v;
     wire visible;
     wire [7:0] frame;
 
+    //SMELL: This is a kludge to help the simulator get its horizontal alignment right:
+    wire [1:0] p00 = (h==0&&v==0 ? 2'b11 : 0);
+
     // RGB output gating:
     wire [1:0] r, g, b; // Raw R, G, B values to be gated by 'visible'.
-    wire [1:0] p00 = (h==0&&v==0 ? 2'b11 : 0); //SMELL: Simulator might not get HSYNC right without this.
     assign red  = visible ? r|p00 : 0;
     assign green= visible ? g     : 0;
     assign blue = visible ? b     : 0;
 
+    // This generates base VGA timing:
     vga_sync sync(
         .clk    (clk),
         .reset  (reset),
@@ -51,90 +58,31 @@ module raybox(
         .frame  (frame)
     );
 
-    // Simple colour range test:
-    // assign r = h[3:2];
-    // assign g = h[5:4];
-    // assign b = h[7:6];
-
-    wire vblank = v>=480;
-    wire [9:0] trace_addr;
-    wire [7:0] trace_val;
-
-    // This is constantly outputting a height value to be written to a column address:
-    tracer tracer(
-        .clk(clk),
-        .active(vblank),
-        .col(trace_addr),
-        .height(trace_val)
-    );
-
-    wire [9:0] trace_buffer_addr = vblank ? trace_addr : h;
-
-    trace_buffer trace_buffer(
-        .clk(clk),
-        .active(vblank),
-        .trace_addr(trace_buffer_addr),
-        .trace_val_in(trace_val),
-        .trace_val_out(height_temp)
-    );
-
-    wire [7:0] height_temp;
-    wire [9:0] height = {2'b00,height_temp};
-
+    // Are we in the ceiling or floor part of the frame?
     wire ceiling = (v<240);
-    wire [1:0] background = ceiling ? 2'b01 : 2'b10;
 
-    // Render column heights (in blue only):
-    wire wall = ceiling ? v > 240-height : v-240 < height;
-    assign r = wall ? 2'b00 : background;
-    assign g = wall ? 2'b00 : background;
-    assign b = wall ? 2'b11 : background;
+    // Determine background colour:
+    wire [1:0] background = ceiling ? 2'b01 : 2'b10;    // Ceiling is dark grey, floor is light grey.
 
-endmodule
-/* verilator lint_on UNOPT */
+    // Read memory to get wall column heights/sides to render:
+    trace_buffer traces(
+        .clk    (clk),
+        .column (h),
+        .height (wall_height[7:0]),
+        .side   (wall_side),
+        .cs     (1),
+        .we     (0),
+        .oe     (1)
+    );
 
+    wire [9:0] wall_height;
+    wire wall_side;
 
+    // Are we rendering wall or background in this pixel?
+    wire in_wall = (HALF_HEIGHT-wall_height) <= v && v <= (HALF_HEIGHT+wall_height);
 
-module tracer(
-    input clk,
-    input active,
-    output [9:0] col,
-    output [7:0] height
-);
-    reg [14:0] col_counter;
-
-    assign col = col_counter[14:5]; // This is a dummy delay which shows we can take at least 32 clocks to trace each ray.
-    assign height = col > 240 ? 240 : col[7:0];
-
-    always @(posedge clk) begin
-        if (!active) begin
-            col_counter <= 0;
-        end else begin
-            col_counter <= col_counter+1;
-        end
-    end
-
-endmodule
-
-
-// This is a memory that stores the results of each trace loop,
-// and allows the renderer to read it while in the visible region of the screen:
-module trace_buffer(
-    input clk,
-    input active,
-    input [9:0] trace_addr,
-    input [7:0] trace_val_in,
-    output [7:0] trace_val_out
-);
-
-    reg [7:0] traces [639:0];
-
-    assign trace_val_out = traces[trace_addr];
-
-    always @(posedge clk) begin
-        if (active) begin
-            traces[trace_addr] <= trace_val_in;
-        end
-    end
+    assign r = !in_wall ? background : 2'b00;
+    assign g = !in_wall ? background : 2'b00;
+    assign b = !in_wall ? background : wall_side ? 2'b11 : 2'b10;
 
 endmodule
