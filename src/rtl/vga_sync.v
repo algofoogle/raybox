@@ -33,7 +33,8 @@ module vga_sync #(
   output vsync,
   output visible,
   output reg [9:0] h, // 0..799
-  output reg [9:0] v  // 0..524
+  output reg [9:0] v, // 0..524
+  output reg [7:0] frame // frame counter, for now limited to 0..255
 );
   localparam HFULL = HRES+HF+HS+HB;
   localparam VFULL = VRES+VF+VS+VB;
@@ -53,6 +54,7 @@ module vga_sync #(
       // compact, because ANY state will eventually come good within 1 or 2 frames.
       h <= 0;
       v <= 0;
+      frame <= 0;
     end else begin
       // Increment pixel counter:
       h <= hmax ? 10'b0 : h+1'b1; // Roll over horizontal scan when we've hit hmax.
@@ -63,6 +65,7 @@ module vga_sync #(
 
         if (vmax) begin
           // End of frame; animation can happen here...
+          frame <= frame + 1;
         end // if (vmax)
       end //if (hmax)
     end // else (i.e. not in reset)

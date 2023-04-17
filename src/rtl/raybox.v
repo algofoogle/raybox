@@ -17,6 +17,7 @@
 `default_nettype none
 `timescale 1ns / 1ps
 
+/* verilator lint_off UNOPT */
 module raybox(
     input clk,
     input reset,
@@ -27,14 +28,21 @@ module raybox(
     output vsync,
     output speaker
 );
-
     wire [9:0] h;
     wire [9:0] v;
     wire visible;
+    wire [7:0] frame;
 
-    assign red     = visible ? {2{h[4]^v[4]}} : 2'b0;
-    assign green   = visible ? {2{h[5]^v[5]}} : 2'b0;
-    assign blue    = visible ? {2{h[6]^v[6]}} : 2'b0;
+    assign red  [1] =  visible & (h[4]^v[4]);
+    assign green[1] =  visible & (h[5]^v[5]);
+    assign blue [1] =  visible & (h[6]^v[6]);
+
+    wire [9:0] h2 = h+{6'b0,frame[4:1]};
+    wire [9:0] v2 = v+{6'b0,frame[5:2]};
+    wire boost = (h2[3]^v2[3]);
+    assign red  [0] = red  [1] & boost;
+    assign green[0] = green[1] & boost;
+    assign blue [0] = blue [1] & boost;
 
     vga_sync sync(
         .clk    (clk),
@@ -43,7 +51,9 @@ module raybox(
         .vsync  (vsync),
         .visible(visible),
         .h      (h),
-        .v      (v)
+        .v      (v),
+        .frame  (frame)
     );
 
 endmodule
+/* verilator lint_on UNOPT */

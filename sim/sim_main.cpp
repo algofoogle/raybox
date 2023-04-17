@@ -30,9 +30,11 @@ using namespace std;
 #define MAIN_TB     Vraybox_TB
 #define BASE_TB     TESTBENCH<VDESIGN>
 
-#define COLOR
+#define HILITE      0b0001'1111
+
 #define NEW_GAME_SIGNAL
 #define PAUSE_SIGNAL
+
 
 
 // #define USE_POWER_PINS //NOTE: This is automatically set in the Makefile, now.
@@ -280,9 +282,9 @@ void clear_freshness(uint8_t *fb) {
     // THIS loop clears all that between refreshes:
     for (int x = 0; x < HFULL; ++x) {
       for (int y = 0; y < VFULL; ++y) {
-        fb[(x+y*WINDOW_WIDTH)*4 + 0] &= 0b1100'0000;
-        fb[(x+y*WINDOW_WIDTH)*4 + 1] &= 0b1100'0000;
-        fb[(x+y*WINDOW_WIDTH)*4 + 2] &= 0b1100'0000;
+        fb[(x+y*WINDOW_WIDTH)*4 + 0] &= ~HILITE;
+        fb[(x+y*WINDOW_WIDTH)*4 + 1] &= ~HILITE;
+        fb[(x+y*WINDOW_WIDTH)*4 + 2] &= ~HILITE;
       }
     }
   // }
@@ -563,18 +565,13 @@ int main(int argc, char **argv) {
       int y = v;
 
       int speaker = (TB->m_core->speaker<<6);
-      int hilite = gHighlight ? 0b11'1111 : 0;
+      int hilite = gHighlight ? HILITE : 0; // hilite turns on lower 5 bits to show which pixel(s) have been updated.
 
       if (x >= 0 && x < WINDOW_WIDTH && y >= 0 && y < WINDOW_HEIGHT) {
 
-#ifdef COLOR
-        int red  = (TB->m_core->red    ? 0b1100'0000 : 0) | hilite;
-        int blue = (TB->m_core->blue   ? 0b1100'0000 : 0) | hilite;
-#else
-        int red  =                                     0  | hilite;
-        int blue =                                     0  | hilite;
-#endif
-        int green= (TB->m_core->green  ? 0b1100'0000 : 0) | hilite;
+        int red  = (TB->m_core->red   << 6) | hilite; // Design drives upper 2 bits of each colour channel.
+        int green= (TB->m_core->green << 6) | hilite; 
+        int blue = (TB->m_core->blue  << 6) | hilite; 
         framebuffer[(y*WINDOW_WIDTH + x)*4 + 2] = red   | (TB->m_core->hsync ? 0 : 0b1000'0000) | speaker;  // R
         framebuffer[(y*WINDOW_WIDTH + x)*4 + 1] = green;                                                    // G
         framebuffer[(y*WINDOW_WIDTH + x)*4 + 0] = blue  | (TB->m_core->vsync ? 0 : 0b1000'0000) | speaker;  // B.
