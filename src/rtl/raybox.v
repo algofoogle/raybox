@@ -33,16 +33,12 @@ module raybox(
     wire visible;
     wire [7:0] frame;
 
-    assign red  [1] =  visible & (h[4]^v[4]);
-    assign green[1] =  visible & (h[5]^v[5]);
-    assign blue [1] =  visible & (h[6]^v[6]);
-
-    wire [9:0] h2 = h+{6'b0,frame[4:1]};
-    wire [9:0] v2 = v+{6'b0,frame[5:2]};
-    wire boost = (h2[3]^v2[3]);
-    assign red  [0] = red  [1] & boost;
-    assign green[0] = green[1] & boost;
-    assign blue [0] = blue [1] & boost;
+    // RGB output gating:
+    wire [1:0] r, g, b; // Raw R, G, B values to be gated by 'visible'.
+    wire [1:0] p00 = (h==0&&v==0 ? 2'b11 : 0); //SMELL: Simulator might not get HSYNC right without this.
+    assign red  = visible ? r|p00 : 0;
+    assign green= visible ? g     : 0;
+    assign blue = visible ? b     : 0;
 
     vga_sync sync(
         .clk    (clk),
@@ -55,5 +51,90 @@ module raybox(
         .frame  (frame)
     );
 
+    // Simple colour range test:
+    // assign r = h[3:2];
+    // assign g = h[5:4];
+    // assign b = h[7:6];
+
+    wire vblank = v>=480;
+    wire [9:0] trace_addr;
+    wire [7:0] trace_val;
+
+    // This is constantly outputting a height value to be written to a column address:
+    tracer tracer(
+        .clk(clk),
+        .active(vblank),
+        .col(trace_addr),
+        .height(trace_val)
+    );
+
+    wire [9:0] trace_buffer_addr = vblank ? trace_addr : h;
+
+    trace_buffer trace_buffer(
+        .clk(clk),
+        .active(vblank),
+        .trace_addr(trace_buffer_addr),
+        .trace_val_in(trace_val),
+        .trace_val_out(height_temp)
+    );
+
+    wire [7:0] height_temp;
+    wire [9:0] height = {2'b00,height_temp};
+
+    wire ceiling = (v<240);
+    wire [1:0] background = ceiling ? 2'b01 : 2'b10;
+
+    // Render column heights (in blue only):
+    wire wall = ceiling ? v > 240-height : v-240 < height;
+    assign r = wall ? 2'b00 : background;
+    assign g = wall ? 2'b00 : background;
+    assign b = wall ? 2'b11 : background;
+
 endmodule
 /* verilator lint_on UNOPT */
+
+
+
+module tracer(
+    input clk,
+    input active,
+    output [9:0] col,
+    output [7:0] height
+);
+    reg [14:0] col_counter;
+
+    assign col = col_counter[14:5]; // This is a dummy delay which shows we can take at least 32 clocks to trace each ray.
+    assign height = col > 240 ? 240 : col[7:0];
+
+    always @(posedge clk) begin
+        if (!active) begin
+            col_counter <= 0;
+        end else begin
+            col_counter <= col_counter+1;
+        end
+    end
+
+endmodule
+
+
+// This is a memory that stores the results of each trace loop,
+// and allows the renderer to read it while in the visible region of the screen:
+module trace_buffer(
+    input clk,
+    input active,
+    input [9:0] trace_addr,
+    input [7:0] trace_val_in,
+    output [7:0] trace_val_out
+);
+
+    reg [7:0] traces [639:0];
+
+    assign trace_val_out = traces[trace_addr];
+
+    always @(posedge clk) begin
+        if (active) begin
+            traces[trace_addr] <= trace_val_in;
+        end
+    end
+
+endmodule
