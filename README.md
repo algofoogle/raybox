@@ -81,12 +81,13 @@ make clean sim_random   # ...unpredictable random values each time.
 
 ## Simulator Hotkeys
 
+**Simulation controls**: Key presses that change the state of the simulator...
+
 | Key           | Function |
 |---------------|----------|
 | Space         | Pause simulator |
 | H             | Toggle refresh highlight |
 | Q or Escape   | Quit     |
-| R             | Reset    |
 | V             | Toggle VSYNC logging |
 | X             | Turn on eXamine mode: Pause simulator if last frame had any tone generation |
 | S             | Step-examine: Unpause, but with examine mode on again |
@@ -106,8 +107,25 @@ make clean sim_random   # ...unpredictable random values each time.
 2.  As soon as a frame completes that included the speaker being turned on, go into PAUSE.
 3.  You can either just resume with <kbd>Space</kbd>, or step through each subsequent examine trigger with S.
 
+**Signal controls**: Key state directly drives a signal of the device being simulated:
+
+| Key           | Function |
+|---------------|----------|
+| R             | Reset    |
+| Tab           | Render map overlay |
+| F1..F8        | Assert debug signal 1 to 8 |
+
+
+**Debug signals** (through function keys F1 to F8) depend on the project being simulated.
+At this time, they control the individual bits (F1 is MSB, F8 is LSB) of the `debug_set_height` input.
+This input gets sent to the internal `tracer` module, and it uses this to write the desired
+debug height value to the `trace_buffer`. Note that this happens during VBLANK only.
+
+
 # Contents
 
+*   [`assets/`](./assets/): `.hex` files that hold test data (game map, and fake trace buffer data).
+*   [`de0-nano/`](./de0-nano/): Files to target Terasic DE0-Nano board (Altera Cyclone IV FPGA) in Quartus.
 *   [`src/`](./src/): Verilog source for the project.
 *   [`sim/`](./sim/): C++ code for Verilator-driven SDL-based VGA simulation.
 

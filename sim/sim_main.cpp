@@ -240,7 +240,19 @@ void handle_control_inputs() {
   // Read the momentary state of all keyboard keys:
   auto keystate = SDL_GetKeyboardState(NULL);
 
-  TB->m_core->reset = keystate[SDL_SCANCODE_R];
+  uint8_t debug_set_height =
+    keystate[SDL_SCANCODE_F1] << 7 |
+    keystate[SDL_SCANCODE_F2] << 6 |
+    keystate[SDL_SCANCODE_F3] << 5 |
+    keystate[SDL_SCANCODE_F4] << 4 |
+    keystate[SDL_SCANCODE_F5] << 3 |
+    keystate[SDL_SCANCODE_F6] << 2 |
+    keystate[SDL_SCANCODE_F7] << 1 |
+    keystate[SDL_SCANCODE_F8] << 0;
+
+  TB->m_core->reset             = keystate[SDL_SCANCODE_R];
+  TB->m_core->show_map          = keystate[SDL_SCANCODE_TAB];
+  TB->m_core->debug_set_height  = debug_set_height;
 }
 
 

@@ -18,7 +18,12 @@
 # This is inspired by: https://github.com/mattvenn/rgb_mixer/blob/main/Makefile
 
 # Main Verilog sources for our design:
-MAIN_VSOURCES = src/rtl/raybox.v src/rtl/vga_sync.v src/rtl/trace_buffer.v
+MAIN_VSOURCES = \
+	src/rtl/raybox.v \
+	src/rtl/vga_sync.v \
+	src/rtl/trace_buffer.v \
+	src/rtl/map_rom.v \
+	src/rtl/tracer.v
 
 # Top Verilog module representing our design:
 TOP = raybox
