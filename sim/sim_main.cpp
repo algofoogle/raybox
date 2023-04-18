@@ -80,6 +80,7 @@ using namespace std;
 #define V_OFFSET          VSP+VBP
 
 #define REFRESH_PIXEL     1
+#define REFRESH_SLOW      8
 #define REFRESH_FASTPIXEL 100
 #define REFRESH_LINE      HFULL
 #define REFRESH_10LINES   HFULL*10
@@ -164,6 +165,12 @@ void process_sdl_events() {
           gSyncLine = false;
           gSyncFrame = false;
           printf("Refreshing every pixel\n");
+          break;
+        case SDLK_8:
+          gRefreshLimit = REFRESH_SLOW;
+          gSyncLine = false;
+          gSyncFrame = false;
+          printf("Refreshing every 8 pixels\n");
           break;
         case SDLK_9:
           gRefreshLimit = REFRESH_FASTPIXEL;

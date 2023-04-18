@@ -44,7 +44,7 @@ module tracer(
         end
     end
 
-    assign store    = enable && debug_set_height!=0;
+    assign store    = enable && debug_set_height!=0 && col_counter[14:5]<640;
     assign column   = col_counter[14:5];    // This updates a column every 32 clocks, to fake a workload.
     assign height   = debug_set_height;
     assign side     = debug_set_height[0];
