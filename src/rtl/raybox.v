@@ -32,8 +32,10 @@ module raybox(
     output          speaker
 );
 
-    localparam SCREEN_HEIGHT = 480;
-    localparam HALF_HEIGHT = SCREEN_HEIGHT>>1;
+    localparam SCREEN_HEIGHT    = 480;
+    localparam HALF_HEIGHT      = SCREEN_HEIGHT>>1;
+    localparam MAP_SCALE        = 2;                        // Power of 2 scaling for map overlay size.
+    localparam MAP_OVERLAY_SIZE = (1<<(MAP_SCALE))*16+1;    // Total size of map overlay.
 
     // Outputs from vga_sync:
     wire [9:0]  h;
@@ -103,25 +105,29 @@ module raybox(
         .oe     (!trace_we)
     );
 
+    wire [3:0] map_row, map_col;
+    wire [1:0] map_val;
     tracer tracer(
         // Inputs to tracer:
         .clk    (clk),
         .reset  (reset),
         .enable (vblank),
+        .map_val(map_val),
         .debug_set_height(debug_set_height),
         .debug_frame(frame),
         // Outputs from tracer:
+        .map_col(map_col),
+        .map_row(map_row),
         .store  (trace_we),
         .column (tracer_addr),
         .side   (tracer_side),
         .height (tracer_height)
     );
 
-    wire [1:0] map_val;
     // Map ROM, both for tracing, and for optional overlay:
     map_rom map(
-        .col    (h[7:4]),
-        .row    (v[7:4]),
+        .col    (visible ? h[MAP_SCALE+3:MAP_SCALE] : map_col),
+        .row    (visible ? v[MAP_SCALE+3:MAP_SCALE] : map_row),
         .val    (map_val)
     );
 
@@ -129,13 +135,14 @@ module raybox(
     wire        in_wall = (HALF_HEIGHT-wall_height) <= v && v <= (HALF_HEIGHT+wall_height);
 
     // Are we in the region of the screen where the map overlay must currently render?
-    wire        in_map_overlay = show_map && h < 16*16+1 && v < 16*16+1;
+
+    wire        in_map_overlay = show_map && h < MAP_OVERLAY_SIZE && v < MAP_OVERLAY_SIZE;
 
     assign r = (in_wall || in_map_overlay) ? 0 : background;
     assign g = (in_wall || in_map_overlay) ? 0 : background;
     assign b =
         in_map_overlay ?
-            h[3:0]==0||v[3:0]==0 ?
+            h[MAP_SCALE-1:0]==0||v[MAP_SCALE-1:0]==0 ?
                 2'b01 :         // Map gridline.
                 map_val :       // Map cell (colour).
         in_wall ?

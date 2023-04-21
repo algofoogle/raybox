@@ -29,7 +29,12 @@ module tracer(
     output reg          store,              // Driven high when we've got a result to store.
     output      [9:0]   column,
     output              side,
-    output      [7:0]   height              //NOTE: Make sure we only output 1..240
+    output      [7:0]   height,             //NOTE: Make sure we only output 1..240
+
+    // Map ROM access:
+    output      [3:0]   map_col,
+    output      [3:0]   map_row,
+    input       [1:0]   map_val
 );
     // How much time do we have?
     // VBLANK is for v in [480,524], which is 45 lines in total.
