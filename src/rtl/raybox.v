@@ -109,6 +109,7 @@ module raybox(
         .reset  (reset),
         .enable (vblank),
         .debug_set_height(debug_set_height),
+        .debug_frame(frame),
         // Outputs from tracer:
         .store  (trace_we),
         .column (tracer_addr),
@@ -116,12 +117,12 @@ module raybox(
         .height (tracer_height)
     );
 
-    wire [1:0] map_color;
+    wire [1:0] map_val;
     // Map ROM, both for tracing, and for optional overlay:
     map_rom map(
         .col    (h[7:4]),
         .row    (v[7:4]),
-        .val    (map_color)
+        .val    (map_val)
     );
 
     // Are we rendering wall or background in this pixel?
@@ -130,29 +131,13 @@ module raybox(
     // Are we in the region of the screen where the map overlay must currently render?
     wire        in_map_overlay = show_map && h < 16*16+1 && v < 16*16+1;
 
-    // always_comb begin
-    //     if (in_map_overlay) begin
-    //         r = 0;
-    //         g = 0;
-    //         b = map_color;
-    //     end else if (in_wall) begin
-    //         r = 0;
-    //         g = 0;
-    //         b = wall_side ? 2'b11 : 2'b10;
-    //     end else begin
-    //         r = background;
-    //         g = background;
-    //         b = background;
-    //     end
-    // end
-
     assign r = (in_wall || in_map_overlay) ? 0 : background;
     assign g = (in_wall || in_map_overlay) ? 0 : background;
     assign b =
         in_map_overlay ?
             h[3:0]==0||v[3:0]==0 ?
                 2'b01 :         // Map gridline.
-                map_color :     // Map cell.
+                map_val :       // Map cell (colour).
         in_wall ?
             wall_side ?
                 2'b11 :         // Bright wall side.
