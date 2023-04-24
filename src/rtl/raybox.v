@@ -19,13 +19,14 @@
 
 // `define SIM_H_HELPER
 
+`define DUMMY_MAP   // If defined, map is made by boolean logic instead of ROM.
+
 `include "fixed_point_params.v"
 
 module raybox(
     input           clk,
     input           reset,
     input           show_map,           // Button to control whether we show the map overlay.
-    input   [7:0]   debug_set_height,   // If NZ, write this height to the trace buffer, but only during VBLANK.
     output  [1:0]   red,   // Each of R, G, and B are 2bpp, for a total of 64 possible colours.
     output  [1:0]   green,
     output  [1:0]   blue,
@@ -36,7 +37,7 @@ module raybox(
 
     localparam SCREEN_HEIGHT    = 480;
     localparam HALF_HEIGHT      = SCREEN_HEIGHT>>1;
-    localparam MAP_SCALE        = 3;                        // Power of 2 scaling for map overlay size.
+    localparam MAP_SCALE        = 4;                        // Power of 2 scaling for map overlay size.
     localparam MAP_OVERLAY_SIZE = (1<<(MAP_SCALE))*16+1;    // Total size of map overlay.
 
     localparam facingXstart =  0 << `Qn;
@@ -45,18 +46,25 @@ module raybox(
     localparam vplaneYstart =  0 << `Qn;
     // localparam playerXstartcell = 12;
     // localparam playerYstartcell = 14;
+`ifdef DUMMY_MAP
+    localparam playerXstartcell = 1;
+    localparam playerYstartcell = 11;
+`else
     localparam playerXstartcell = 8;
     localparam playerYstartcell = 14;
+`endif
     // localparam playerXstartcell = 3;
     // localparam playerYstartcell = 11;
     localparam playerXstartpos  = (playerXstartcell << `Qn) + 16'b1000000000;
     localparam playerYstartpos  = (playerYstartcell << `Qn) + 16'b1000000000;
 
+    assign speaker = 0;
+
     // Outputs from vga_sync:
     wire [9:0]  h;
     wire [9:0]  v;
     wire        visible;
-    wire [7:0]  frame;
+    wire [10:0] frame;
 
     reg `Fixed playerX;
     reg `Fixed playerY;
@@ -71,10 +79,10 @@ module raybox(
     // If we use a 0.75 scaling factor, maybe this means simpler multiply logic?
     // atan(0.75) ~= 36.87deg, so an FOV of ~73.74deg
 
-    initial begin
-        $dumpfile ("raybox.vcd");
-        $dumpvars (0, tracer);
-    end
+    // initial begin
+    //     $dumpfile ("raybox.vcd");
+    //     $dumpvars (0, tracer);
+    // end
 
     always @(posedge clk) begin
         if (reset) begin
@@ -92,7 +100,7 @@ module raybox(
             vplaneX <= vplaneXstart;
             vplaneY <= vplaneYstart;
         end else begin
-            playerX <= playerXstartpos - {3'b0,frame,5'b0};
+            playerX <= playerXstartpos + {2'b0,frame,3'b0};
         end
     end
     always @(negedge reset) begin
@@ -177,7 +185,6 @@ module raybox(
         .facingY(facingY),
         .vplaneX(vplaneX),
         .vplaneY(vplaneY),
-        .debug_set_height(debug_set_height),
         .debug_frame(frame),
         // Outputs from tracer:
         .map_col(map_col),
@@ -198,21 +205,52 @@ module raybox(
     // Are we rendering wall or background in this pixel?
     wire        in_wall = (HALF_HEIGHT-wall_height) <= v && v <= (HALF_HEIGHT+wall_height);
 
+    // Are we in the border area?
+    //SMELL: This conceals some slight rendering glitches that we really should fix.
+    wire        in_border = h<66 || h>=574;
+
+    // Is this a dead column, i.e. height is 0?
+    wire        dead_column = wall_height==0;
+
     // Are we in the region of the screen where the map overlay must currently render?
+    wire        in_map_overlay  = show_map && h < MAP_OVERLAY_SIZE && v < MAP_OVERLAY_SIZE;
+    wire        in_map_gridline = in_map_overlay && (h[MAP_SCALE-1:0]==0||v[MAP_SCALE-1:0]==0);
+    wire        in_player_cell  = in_map_overlay && (playerX[13:`Qn]==h[MAP_SCALE+3:MAP_SCALE] && playerY[13:`Qn]==v[MAP_SCALE+3:MAP_SCALE]);
+    wire        in_player_pixel = in_player_cell
+                                    && (playerX[`Qn-1:`Qn-MAP_SCALE]==h[MAP_SCALE-1:0])
+                                    && (playerY[`Qn-1:`Qn-MAP_SCALE]==v[MAP_SCALE-1:0]);
 
-    wire        in_map_overlay = show_map && h < MAP_OVERLAY_SIZE && v < MAP_OVERLAY_SIZE;
-
-    assign r = (in_wall || in_map_overlay) ? 0 : background;
-    assign g = (in_wall || in_map_overlay) ? 0 : background;
+    assign r =
+        in_player_pixel ?   2'b11 :             // Player pixel in map is yellow.
+        in_player_cell  ?   0 :
+        in_map_gridline ?   0 :
+        in_map_overlay  ?   0 :
+        in_border       ?   2'b01 :             // Border is dark purple.
+        dead_column     ?   2'b11 :             // 0-height columns are filled with magenta.
+        in_wall         ?   0 :
+                            background;
+    
+    assign g =
+        in_player_pixel ?   2'b11 :             // Player pixel in map is yellow.
+        in_player_cell  ?   2'b01 :             // Player cell in map is dark green.
+        in_map_gridline ?   0 :
+        in_map_overlay  ?   0 :
+        in_border       ?   0 :
+        dead_column     ?   0 :
+        in_wall         ?   0 :
+                            background;
+    
     assign b =
-        in_map_overlay ?
-            h[MAP_SCALE-1:0]==0||v[MAP_SCALE-1:0]==0 ?
-                2'b01 :         // Map gridline.
-                map_val :       // Map cell (colour).
-        in_wall ?
-            wall_side ?
-                2'b11 :         // Bright wall side.
-                2'b10 :         // Dark wall side.
-            background;         // Ceiling/floor background.
+        in_player_pixel ?   0 :
+        in_player_cell  ?   0 :
+        in_map_gridline ?   2'b01 :             // Map gridlines are dark blue.
+        in_map_overlay  ?   map_val :           // Map cell (colour).
+        in_border       ?   2'b01 :             // Border is dark purple.
+        dead_column     ?   2'b11 :             // 0-height columns are filled with magenta.
+        in_wall         ?
+                            wall_side ?
+                                2'b11 :         // Bright wall side.
+                                2'b10 :         // Dark wall side.
+                            background;         // Ceiling/floor background.
 
 endmodule

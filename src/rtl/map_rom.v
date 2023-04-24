@@ -32,9 +32,21 @@ module map_rom #(
     output  [BITS-1:0]  val
 );
 
+`ifdef DUMMY_MAP
+    assign val = 
+        (
+            ((row==0 || row==15 || col==0 || col==15) ||
+            ((~row[2:0]==col[2:0]) & ~row[3] & ~col[3]) ||
+            (((
+                (row[1] ^ col[2]) ^ (row[0] & col[1])
+            ) & row[2] & col[1]) | (~row[0]&~col[0]))
+            & (row[2]^~col[2]))
+        ) ? 2'b11 : 0;
+`else
     reg [7:0]   dummy_memory [0:ROWS-1][0:COLS-1];
     initial $readmemh("assets/map_16x16.hex", dummy_memory);
 
     assign val = dummy_memory[row][col][BITS-1:0];
+`endif
 
 endmodule

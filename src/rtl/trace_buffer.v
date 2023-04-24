@@ -45,7 +45,7 @@ module trace_buffer(
     // - First byte is wall height (8 bits, but should only typically be 1..240).
     // - Second byte, only LSB is used for wall facing: EW (0) or NS (1) facing.
     reg [7:0]   dummy_memory [0:640*2-1];
-    initial $readmemh("assets/traces_capture_0001.hex", dummy_memory);
+    // initial $readmemh("assets/traces_capture_0001.hex", dummy_memory);
 
     // Tri-state buffer control for output mode:
     wire read_mode = (cs && oe && !we);

@@ -34,7 +34,7 @@ module vga_sync #(
   output visible,
   output reg [9:0] h, // 0..799
   output reg [9:0] v, // 0..524
-  output reg [7:0] frame // frame counter, for now limited to 0..255
+  output reg [10:0] frame // frame counter, for now limited to 0..2047
 );
   localparam HFULL = HRES+HF+HS+HB;
   localparam VFULL = VRES+VF+VS+VB;
