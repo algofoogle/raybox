@@ -23,7 +23,9 @@ MAIN_VSOURCES = \
 	src/rtl/vga_sync.v \
 	src/rtl/trace_buffer.v \
 	src/rtl/map_rom.v \
-	src/rtl/tracer.v
+	src/rtl/tracer.v \
+	src/rtl/lzc.v \
+	src/rtl/reciprocal.v
 
 # Top Verilog module representing our design:
 TOP = raybox
@@ -70,6 +72,7 @@ sim_seed: $(SIM_EXE)
 $(SIM_EXE): $(MAIN_VSOURCES) sim/sim_main.cpp sim/main_tb.h sim/testbench.h
 	verilator \
 		--Mdir sim/obj_dir \
+		-Isrc/rtl \
 		--cc $(MAIN_VSOURCES) \
 		--top-module $(TOP) \
 		--exe --build ../sim/sim_main.cpp \

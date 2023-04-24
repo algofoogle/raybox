@@ -19,6 +19,8 @@
 
 // `define SIM_H_HELPER
 
+`include "fixed_point_params.v"
+
 module raybox(
     input           clk,
     input           reset,
@@ -34,14 +36,70 @@ module raybox(
 
     localparam SCREEN_HEIGHT    = 480;
     localparam HALF_HEIGHT      = SCREEN_HEIGHT>>1;
-    localparam MAP_SCALE        = 2;                        // Power of 2 scaling for map overlay size.
+    localparam MAP_SCALE        = 3;                        // Power of 2 scaling for map overlay size.
     localparam MAP_OVERLAY_SIZE = (1<<(MAP_SCALE))*16+1;    // Total size of map overlay.
+
+    localparam facingXstart =  0 << `Qn;
+    localparam facingYstart = -1 << `Qn;
+    localparam vplaneXstart = 16'b0_00000_1000000000;
+    localparam vplaneYstart =  0 << `Qn;
+    // localparam playerXstartcell = 12;
+    // localparam playerYstartcell = 14;
+    localparam playerXstartcell = 8;
+    localparam playerYstartcell = 14;
+    // localparam playerXstartcell = 3;
+    // localparam playerYstartcell = 11;
+    localparam playerXstartpos  = (playerXstartcell << `Qn) + 16'b1000000000;
+    localparam playerYstartpos  = (playerYstartcell << `Qn) + 16'b1000000000;
 
     // Outputs from vga_sync:
     wire [9:0]  h;
     wire [9:0]  v;
     wire        visible;
     wire [7:0]  frame;
+
+    reg `Fixed playerX;
+    reg `Fixed playerY;
+    reg `Fixed facingX;     // Heading is the vector of the direction the player is facing.
+    reg `Fixed facingY;
+    reg `Fixed vplaneX;     // Viewplane vector (typically 'facing' rotated clockwise by 90deg and then scaled).
+    reg `Fixed vplaneY;     // (which could also be expressed as vx=-fy, vy=fx, then scaled).
+    //NOTE: raybox-app original FOV is 70deg, which coincidentally works out to be almost exactly
+    // a 0.7 scaling factor: tan(70/2) = 0.7002...
+    // No scaling factor (i.e. 1.0) would be easiest/simplest, and that means an
+    // FOV of 90deg, but maybe that's too much?
+    // If we use a 0.75 scaling factor, maybe this means simpler multiply logic?
+    // atan(0.75) ~= 36.87deg, so an FOV of ~73.74deg
+
+    initial begin
+        $dumpfile ("raybox.vcd");
+        $dumpvars (0, tracer);
+    end
+
+    always @(posedge clk) begin
+        if (reset) begin
+            // Set starting position of the player to (8.5,14.5) using fixed-point:
+            playerX <=  playerXstartpos; // 8.5
+            playerY <=  playerYstartpos; // 14.5
+
+            facingX <=  facingXstart;
+            facingY <=  facingYstart; //-1 << `Qn; // 16'b1_11111_0000000000
+
+            // vplaneX <= 16'b0_00000_1000000000;   // 0.5 in Q6.10; means an FOV of about 53deg
+            // vplaneX <= 16'b0_00000_1100000000;   // 0.75 in Q6.10; means an FOV of about 74deg
+            // vplaneX <=  1 << `Qn; // 16'b0_00001_0000000000    //NOTE: For now, this means an FOV of 90deg.
+            // vplaneY <=  0 << `Qn;
+            vplaneX <= vplaneXstart;
+            vplaneY <= vplaneYstart;
+        end else begin
+            playerX <= playerXstartpos - {3'b0,frame,5'b0};
+        end
+    end
+    always @(negedge reset) begin
+        $display("playerX=%f, playerY=%f", playerX*`SF, playerY*`SF);
+        $display("facingX=%f, facingY=%f", facingX*`SF, facingY*`SF);
+        $display("vplaneX=%f, vplaneY=%f", vplaneX*`SF, vplaneY*`SF);
+    end
 
     // RGB output gating:
     wire [1:0]  r, g, b; // Raw R, G, B values to be gated by 'visible'.
@@ -113,6 +171,12 @@ module raybox(
         .reset  (reset),
         .enable (vblank),
         .map_val(map_val),
+        .playerX(playerX),
+        .playerY(playerY),
+        .facingX(facingX),
+        .facingY(facingY),
+        .vplaneX(vplaneX),
+        .vplaneY(vplaneY),
         .debug_set_height(debug_set_height),
         .debug_frame(frame),
         // Outputs from tracer:

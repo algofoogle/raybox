@@ -383,6 +383,7 @@ void overflow_test(uint8_t *fb) {
 int main(int argc, char **argv) {
 
   Verilated::commandArgs(argc, argv);
+  // Verilated::traceEverOn(true);
   
   TB = new MAIN_TB();
 #ifdef USE_POWER_PINS
