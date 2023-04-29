@@ -133,7 +133,7 @@ module tracer(
     //NOTE: To keep this simple for now, I'm going for a screen width of 512,
     // because it makes fixed-point division so much easier.
 
-    int trace_cycle_count; //DEBUG: Used to count actual clock cycles it takes to trace a frame.
+    integer trace_cycle_count; //DEBUG: Used to count actual clock cycles it takes to trace a frame.
 
     always @(posedge clk) begin
         if (reset || !enable) begin
@@ -163,7 +163,7 @@ module tracer(
             side <= 0;
             state <= LCLEAR;
         end else begin
-            trace_cycle_count++; //DEBUG
+            trace_cycle_count = trace_cycle_count + 1; //DEBUG
             // Oh, we must be enabled (and not in reset) so we're a free-running system now...
             case (state)
                 LCLEAR: begin
