@@ -4,35 +4,35 @@
 
 
 module lzc #(
-	parameter WIDTH=16 //SMELL: Not used.
+    parameter WIDTH=16 //SMELL: Not used.
 )(
-	input [15:0] i_data,
-	output [4:0] lzc_cnt
+    input   [15:0]  i_data,
+    output   [4:0]  lzc_cnt
 );
 
-	function [4:0] f_lzc(input [15:0] data);
-			casex(data)
-					16'b0000000000000000:   f_lzc = 16;
-					16'b0000000000000001:   f_lzc = 15;
-					16'b000000000000001x:   f_lzc = 14;
-					16'b00000000000001xx:   f_lzc = 13;
-					16'b0000000000001xxx:   f_lzc = 12;
-					16'b000000000001xxxx:   f_lzc = 11;
-					16'b00000000001xxxxx:   f_lzc = 10;
-					16'b0000000001xxxxxx:   f_lzc = 9;
-					16'b000000001xxxxxxx:   f_lzc = 8;
-					16'b00000001xxxxxxxx:   f_lzc = 7;
-					16'b0000001xxxxxxxxx:   f_lzc = 6;
-					16'b000001xxxxxxxxxx:   f_lzc = 5;
-					16'b00001xxxxxxxxxxx:   f_lzc = 4;
-					16'b0001xxxxxxxxxxxx:   f_lzc = 3;
-					16'b001xxxxxxxxxxxxx:   f_lzc = 2;
-					16'b01xxxxxxxxxxxxxx:   f_lzc = 1;
-					default:                f_lzc = 0;
-			endcase
-	endfunction
+    function [4:0] f_lzc(input [15:0] data);
+        casez(data)
+            16'b0000000000000000:   f_lzc = 16;
+            16'b0000000000000001:   f_lzc = 15;
+            16'b000000000000001?:   f_lzc = 14;
+            16'b00000000000001??:   f_lzc = 13;
+            16'b0000000000001???:   f_lzc = 12;
+            16'b000000000001????:   f_lzc = 11;
+            16'b00000000001?????:   f_lzc = 10;
+            16'b0000000001??????:   f_lzc = 9;
+            16'b000000001???????:   f_lzc = 8;
+            16'b00000001????????:   f_lzc = 7;
+            16'b0000001?????????:   f_lzc = 6;
+            16'b000001??????????:   f_lzc = 5;
+            16'b00001???????????:   f_lzc = 4;
+            16'b0001????????????:   f_lzc = 3;
+            16'b001?????????????:   f_lzc = 2;
+            16'b01??????????????:   f_lzc = 1;
+            default:                f_lzc = 0;
+        endcase
+    endfunction
 
-	assign lzc_cnt = f_lzc(i_data);
+    assign lzc_cnt = f_lzc(i_data);
 
 endmodule
 

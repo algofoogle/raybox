@@ -14,7 +14,7 @@ module reciprocal(
 );
 
     //QM.N M= 6, N= 10
-//    localparam bit[4:0] M = 6;
+    //localparam bit[4:0] M = 6;
     localparam [4:0] M = 6;
     //localparam [9:0] N= 10;
 
