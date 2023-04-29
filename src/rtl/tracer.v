@@ -103,16 +103,27 @@ module tracer(
     reciprocal flipY        (.i_data(rayDirY),          .i_abs(1), .o_data(stepYdist),  .o_sat(satY));
     reciprocal height_scaler(.i_data(visualWallDist),   .i_abs(1), .o_data(heightScale),.o_sat(satHeight));
 
-
     assign map_col = mapX[3:0];
     assign map_row = mapY[3:0];
 
     wire [15:0] visualWallDist = side ? trackYdist-stepYdist : trackXdist-stepXdist;
     wire [15:0] heightScale;
-    wire [31:0] wallHeight32 = (heightScale > (1<<`Qn)) ? (240<<`Qn) : 240 * {16'b0,heightScale};
-    wire [15:0] wallHeight16 = wallHeight32[25:10];
 
-    assign height = (state == LCLEAR || state == RCLEAR) ? 0 : wallHeight16[7:0];
+    // Use a wall reference height of 256, which makes the maths simpler
+    // (i.e. simple bit extraction instead of a multiplier), and happens to
+    // also make the aspect ratio closer to square for each map cell:
+    wire [7:0] wallHeight =
+        (heightScale >= (1<<`Qn)) ? 255 : // Cap height at 255 if heightScale >= 1.0
+        heightScale[9:2];  // Else this means: *256 (ref. height), /1024 (to get integer part).
+
+    // wire [31:0] wallHeight32 = (heightScale > (1<<`Qn)) ? (240<<`Qn) : 240 * {16'b0,heightScale};
+    // wire [15:0] wallHeight16 = wallHeight32[25:10];
+    // assign height = (state == LCLEAR || state == RCLEAR) ? 0 : wallHeight16[7:0];
+
+    assign height =
+        (state == LCLEAR || state == RCLEAR) ? 0 :  // 
+        (wallHeight > 240) ? 240 :
+        wallHeight;
     assign column = col_counter;
 
     //SMELL: Stop when map coordinates would wrap.
@@ -122,8 +133,13 @@ module tracer(
     //NOTE: To keep this simple for now, I'm going for a screen width of 512,
     // because it makes fixed-point division so much easier.
 
+    int trace_cycle_count; //DEBUG: Used to count actual clock cycles it takes to trace a frame.
+
     always @(posedge clk) begin
         if (reset || !enable) begin
+            // if (trace_cycle_count > 0)
+            //     $display("Total frame VBLANK cycles: %d", trace_cycle_count);
+            trace_cycle_count = 0; //DEBUG
             // Prime the system...
             store <= 0;
             // The values below are starting conditions which are then
@@ -147,6 +163,7 @@ module tracer(
             side <= 0;
             state <= LCLEAR;
         end else begin
+            trace_cycle_count++; //DEBUG
             // Oh, we must be enabled (and not in reset) so we're a free-running system now...
             case (state)
                 LCLEAR: begin
@@ -157,9 +174,9 @@ module tracer(
                     end
                 end
                 INIT: begin
-                    if (col_counter == 64) begin
-                        $display("Start trace at player X,Y:%f,%f", playerX*`SF, playerY*`SF);
-                    end
+                    // if (col_counter == 64) begin
+                    //     $display("Start trace at player X,Y:%f,%f", playerX*`SF, playerY*`SF);
+                    // end
                     store <= 0;
                     // Get the cell the player's currently in:
                     mapX <= playerXint; //>> `Qn; //fixed2int(playerX);
@@ -214,7 +231,7 @@ module tracer(
                     end
                 end
                 DONE: begin
-                    $display("Frame %d, finished tracing at col_counter=%d", debug_frame, col_counter);
+                    $display("Frame %d, finished tracing after %d clock cycles", debug_frame, trace_cycle_count);
                     state <= RCLEAR;
                     store <= 0;
                 end

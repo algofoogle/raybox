@@ -40,12 +40,8 @@ module trace_buffer(
     reg [7:0]   height_out;
     reg         side_out;
 
-    //NOTE: dummy_memory arrangement is a pair of bytes for each
-    // traced screen column.
-    // - First byte is wall height (8 bits, but should only typically be 1..240).
-    // - Second byte, only LSB is used for wall facing: EW (0) or NS (1) facing.
-    reg [7:0]   dummy_memory [0:640*2-1];
-    // initial $readmemh("assets/traces_capture_0001.hex", dummy_memory);
+    reg [7:0]   dummy_height_memory [0:640-1];  // 5120 bits.
+    reg         dummy_side_memory   [0:640-1];  // 640 bits.
 
     // Tri-state buffer control for output mode:
     wire read_mode = (cs && oe && !we);
@@ -55,16 +51,16 @@ module trace_buffer(
     // Memory write block:
     always @(posedge clk) begin : MEM_WRITE
         if (cs && we) begin
-            dummy_memory[ {column,1'b0} ][7:0] = height;
-            dummy_memory[ {column,1'b1} ][0:0] = side;
+            dummy_height_memory [column]    = height;
+            dummy_side_memory   [column]    = side;
         end
     end
 
     // Memory read block:
     always @(posedge clk) begin : MEM_READ
         if (read_mode) begin
-            height_out  = dummy_memory[ {column,1'b0} ][7:0];
-            side_out    = dummy_memory[ {column,1'b1} ][0:0];
+            height_out  = dummy_height_memory [column];
+            side_out    = dummy_side_memory   [column];
         end
     end
 
