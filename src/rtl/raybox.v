@@ -27,6 +27,12 @@ module raybox(
     input           clk,
     input           reset,
     input           show_map,           // Button to control whether we show the map overlay.
+    
+    input           moveL,
+    input           moveR,
+    input           moveF,
+    input           moveB,
+    
     output  [1:0]   red,   // Each of R, G, and B are 2bpp, for a total of 64 possible colours.
     output  [1:0]   green,
     output  [1:0]   blue,
@@ -34,7 +40,7 @@ module raybox(
     output          vsync,
     output  [9:0]   px,   // Current pixel x.
     output  [9:0]   py,   // Current pixel y.
-		output	[10:0]	frame_num,
+    output  [10:0]  frame_num,
     output          speaker
 );
 
@@ -68,10 +74,11 @@ module raybox(
     wire [9:0]  v;
     wire        visible;
     wire [10:0] frame;
-		
+    wire        tick = h==0 && v==0;
+    
     assign px = h;
     assign py = v;
-		assign frame_num = frame;
+    assign frame_num = frame;
 
     reg `Fixed playerX;
     reg `Fixed playerY;
@@ -106,8 +113,20 @@ module raybox(
             // vplaneY <=  0 << `Qn;
             vplaneX <= vplaneXstart;
             vplaneY <= vplaneYstart;
-        end else begin
-            playerX <= playerXstartpos + {2'b0,frame,3'b0};
+        end else if (tick) begin
+            // Animation can happen here.
+						// Handle player motion:
+            if (moveL)
+                playerX <= playerX - 8; // 1/128th of a cell, or 0.0078125.
+            else if (moveR)
+                playerX <= playerX + 8;
+
+            if (moveF)
+                playerY <= playerY - 8;
+            else if (moveB)
+                playerY <= playerY + 8;
+
+//            playerX <= playerXstartpos + {2'b0,frame,3'b0};
         end
     end
     always @(negedge reset) begin

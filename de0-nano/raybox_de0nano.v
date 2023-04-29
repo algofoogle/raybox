@@ -20,7 +20,7 @@ module raybox_de0nano(
 //  REG/WIRE declarations
 //=======================================================
 
-  // K4..K1 external buttons.
+  // K4..K1 external buttons (K4 is top, K1 is bottom):
   wire [4:1] K = {gpio1[23], gpio1[21], gpio1[19], gpio1[17]};
   //assign K = 4'bZ; // Hi-Z because they're inputs.
   // These buttons are normally pulled high, but our design needs active-high:
@@ -33,7 +33,7 @@ module raybox_de0nano(
   wire vsync;
   wire [9:0] px;
   wire [9:0] py;
-	wire [10:0] frame_num;
+  wire [10:0] frame_num;
   wire speaker;
 
 //=======================================================
@@ -47,7 +47,7 @@ module raybox_de0nano(
 
   // Because actual hardware is only using MSB of each colour channel, attenuate that output
   // (i.e. mask it out for some pixels) to create a pattern dither:
-	wire alt = frame_num[0];
+  wire alt = frame_num[0];
   wire dither_hi = (px[0]^py[0])^alt;
   wire dither_lo = (px[0]^alt)&(py[0]^alt);
   assign gpio1[0] = (r==2'b11) ? 1 : (r==2'b10) ? dither_hi : (r==2'b01) ? dither_lo : 0;
@@ -59,22 +59,32 @@ module raybox_de0nano(
   assign LED[7] = speaker;    // Visualise speaker on LED7.
   assign gpio1[9] = speaker;  // Also sound the speaker on GPIO_19.
 
+  wire moveL = !K[3];
+  wire moveR = !K[2];
+  wire moveF = !K[4];
+  wire moveB = !K[1];
+
   //SMELL: This is a bad way to do clock dividing.
   // ...i.e. if we can't make it a global clock, then instead use it as a clock enable.
     // Otherwise, can we use the built-in FPGA clock divider?
   reg clock_25;
   always @(posedge CLOCK_50) clock_25 <= ~clock_25;
-	
+  
   
   raybox raybox(
     .clk      (clock_25),
     .reset    (reset),
     .show_map (show_map),
+    .moveL    (moveL),
+    .moveR    (moveR),
+    .moveF    (moveF),
+    .moveB    (moveB),
+    
     .hsync    (hsync),
     .vsync    (vsync),
     .px       (px),
     .py       (py),
-		.frame_num(frame_num),
+    .frame_num(frame_num),
     .red      (r),
     .green    (g),
     .blue     (b),
