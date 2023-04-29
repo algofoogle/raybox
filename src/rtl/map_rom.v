@@ -17,6 +17,8 @@
 `default_nettype none
 `timescale 1ns / 1ps
 
+`define DUMMY_MAP
+
 //NOTE: If we actually wanted to store the game map statically in ROM (or RAM)
 // then we could get away with 14x14 if we assume the outer edge is always solid wall.
 // That means 60 fewer cells, but also means we'd have to hard-code the outer wall type.
