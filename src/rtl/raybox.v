@@ -32,6 +32,9 @@ module raybox(
     output  [1:0]   blue,
     output          hsync,
     output          vsync,
+    output  [9:0]   px,   // Current pixel x.
+    output  [9:0]   py,   // Current pixel y.
+		output	[10:0]	frame_num,
     output          speaker
 );
 
@@ -65,6 +68,10 @@ module raybox(
     wire [9:0]  v;
     wire        visible;
     wire [10:0] frame;
+		
+    assign px = h;
+    assign py = v;
+		assign frame_num = frame;
 
     reg `Fixed playerX;
     reg `Fixed playerY;

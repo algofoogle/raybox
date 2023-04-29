@@ -3,12 +3,12 @@
 
 // Wrapper for raybox module, targeting DE0-Nano board:
 module raybox_de0nano(
-	input 					CLOCK_50,	// Onboard 50MHz clock
-	output	[7:0]		LED,			// 8 onboard LEDs
-	input		[1:0]		KEY,			// 2 onboard pushbuttons
-	input		[3:0]		SW,				// 4 onboard DIP switches
-	inout		[33:0]	gpio1,		// GPIO1
-	input		[1:0]		gpio1_IN	// GPIO1 input-only pins
+  input           CLOCK_50, // Onboard 50MHz clock
+  output  [7:0]   LED,      // 8 onboard LEDs
+  input   [1:0]   KEY,      // 2 onboard pushbuttons
+  input   [3:0]   SW,       // 4 onboard DIP switches
+  inout   [33:0]  gpio1,    // GPIO1
+  input   [1:0]   gpio1_IN  // GPIO1 input-only pins
 );
 
 //=======================================================
@@ -20,43 +20,65 @@ module raybox_de0nano(
 //  REG/WIRE declarations
 //=======================================================
 
-	// K4..K1 external buttons.
-	wire [4:1] K = {gpio1[23], gpio1[21], gpio1[19], gpio1[17]};
-	//assign K = 4'bZ; // Hi-Z because they're inputs.
-	wire reset = !KEY[0]; // This button is normally pulled high, but our design needs an active-high reset.
-    wire [1:0] r;
-    wire [1:0] g;
-    wire [1:0] b;
-    wire hsync;
-    wire vsync;
-	wire speaker;
+  // K4..K1 external buttons.
+  wire [4:1] K = {gpio1[23], gpio1[21], gpio1[19], gpio1[17]};
+  //assign K = 4'bZ; // Hi-Z because they're inputs.
+  // These buttons are normally pulled high, but our design needs active-high:
+  wire reset    = !KEY[0];
+  wire show_map = !KEY[1];
+  wire [1:0] r;
+  wire [1:0] g;
+  wire [1:0] b;
+  wire hsync;
+  wire vsync;
+  wire [9:0] px;
+  wire [9:0] py;
+	wire [10:0] frame_num;
+  wire speaker;
 
 //=======================================================
 //  Structural coding
 //=======================================================
-    assign gpio1[0] = r[1]; // Actual hardware is only using MSB of each colour channel.
-    assign gpio1[1] = g[1];
-    assign gpio1[3] = b[1];
-    assign gpio1[5] = hsync;
-    assign gpio1[7] = vsync;
-	assign LED[7] = speaker;		// Visualise speaker on LED7.
-	assign gpio1[9] = speaker;	// Also sound the speaker on GPIO_19.
 
-	//SMELL: This is a bad way to do clock dividing.
-	// ...i.e. if we can't make it a global clock, then instead use it as a clock enable.
+//    // Actual hardware is only using MSB of each colour channel:
+//    assign gpio1[0] = r[1];
+//    assign gpio1[1] = g[1];
+//    assign gpio1[3] = b[1];
+
+  // Because actual hardware is only using MSB of each colour channel, attenuate that output
+  // (i.e. mask it out for some pixels) to create a pattern dither:
+	wire alt = frame_num[0];
+  wire dither_hi = (px[0]^py[0])^alt;
+  wire dither_lo = (px[0]^alt)&(py[0]^alt);
+  assign gpio1[0] = (r==2'b11) ? 1 : (r==2'b10) ? dither_hi : (r==2'b01) ? dither_lo : 0;
+  assign gpio1[1] = (g==2'b11) ? 1 : (g==2'b10) ? dither_hi : (g==2'b01) ? dither_lo : 0;
+  assign gpio1[3] = (b==2'b11) ? 1 : (b==2'b10) ? dither_hi : (b==2'b01) ? dither_lo : 0;
+    
+  assign gpio1[5] = hsync;
+  assign gpio1[7] = vsync;
+  assign LED[7] = speaker;    // Visualise speaker on LED7.
+  assign gpio1[9] = speaker;  // Also sound the speaker on GPIO_19.
+
+  //SMELL: This is a bad way to do clock dividing.
+  // ...i.e. if we can't make it a global clock, then instead use it as a clock enable.
     // Otherwise, can we use the built-in FPGA clock divider?
-	reg clock_25;
-	always @(posedge CLOCK_50) clock_25 <= ~clock_25;
+  reg clock_25;
+  always @(posedge CLOCK_50) clock_25 <= ~clock_25;
 	
-	raybox raybox(
-		.clk(clock_25),
-		.reset(reset),
-		.hsync(hsync),
-		.vsync(vsync),
-		.red(r),
-		.green(g),
-		.blue(b),
-		.speaker(speaker)
-	);
+  
+  raybox raybox(
+    .clk      (clock_25),
+    .reset    (reset),
+    .show_map (show_map),
+    .hsync    (hsync),
+    .vsync    (vsync),
+    .px       (px),
+    .py       (py),
+		.frame_num(frame_num),
+    .red      (r),
+    .green    (g),
+    .blue     (b),
+    .speaker  (speaker)
+  );
 
 endmodule
