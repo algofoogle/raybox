@@ -138,6 +138,19 @@ void get_text_and_rect(
 }
 
 
+enum {
+  LOCK_F = 0,
+  LOCK_B,
+  LOCK_L,
+  LOCK_R,
+  LOCK_MAP,
+  LOCK__MAX
+};
+
+
+bool gLockInputs[LOCK__MAX] = {0};
+
+
 void process_sdl_events() {
   // Event used to receive window close, keyboard actions, etc:
   SDL_Event e;
@@ -208,6 +221,11 @@ void process_sdl_events() {
           gSyncFrame = true;
           printf("Refreshing every 3 frames\n");
           break;
+        case SDLK_INSERT: gLockInputs[LOCK_MAP] ^= 1; break;
+        case SDLK_UP:     gLockInputs[LOCK_F  ] ^= 1; break;
+        case SDLK_DOWN:   gLockInputs[LOCK_B  ] ^= 1; break;
+        case SDLK_LEFT:   gLockInputs[LOCK_L  ] ^= 1; break;
+        case SDLK_RIGHT:  gLockInputs[LOCK_R  ] ^= 1; break;
         case SDLK_v:
           TB->log_vsync = !TB->log_vsync;
           printf("Logging VSYNC %s\n", TB->log_vsync ? "enabled" : "disabled");
@@ -247,19 +265,12 @@ void handle_control_inputs() {
   // Read the momentary state of all keyboard keys:
   auto keystate = SDL_GetKeyboardState(NULL);
 
-  // uint8_t debug_set_height =
-  //   keystate[SDL_SCANCODE_F1] << 7 |
-  //   keystate[SDL_SCANCODE_F2] << 6 |
-  //   keystate[SDL_SCANCODE_F3] << 5 |
-  //   keystate[SDL_SCANCODE_F4] << 4 |
-  //   keystate[SDL_SCANCODE_F5] << 3 |
-  //   keystate[SDL_SCANCODE_F6] << 2 |
-  //   keystate[SDL_SCANCODE_F7] << 1 |
-  //   keystate[SDL_SCANCODE_F8] << 0;
-
   TB->m_core->reset             = keystate[SDL_SCANCODE_R];
-  TB->m_core->show_map          = keystate[SDL_SCANCODE_TAB];
-  // TB->m_core->debug_set_height  = debug_set_height;
+  TB->m_core->show_map          = keystate[SDL_SCANCODE_TAB ] | gLockInputs[LOCK_MAP];
+  TB->m_core->moveF             = keystate[SDL_SCANCODE_W   ] | gLockInputs[LOCK_F];
+  TB->m_core->moveL             = keystate[SDL_SCANCODE_A   ] | gLockInputs[LOCK_L];
+  TB->m_core->moveB             = keystate[SDL_SCANCODE_S   ] | gLockInputs[LOCK_B];
+  TB->m_core->moveR             = keystate[SDL_SCANCODE_D   ] | gLockInputs[LOCK_R];
 }
 
 
