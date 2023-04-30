@@ -69,13 +69,14 @@ module tracer(
     localparam INIT     = 0;
     localparam STEP     = 1;
     localparam CHECK    = 2;
-    localparam DONE     = 3;
-    localparam STOP     = 4;
-    localparam DEBUG    = 5;
+    localparam HIT      = 3;
+    localparam DONE     = 4;
+    localparam STOP     = 5;
     localparam LCLEAR   = 6;
     localparam RCLEAR   = 7;
+    localparam DEBUG    = 8;
 
-    reg [2:0] state;
+    reg [3:0] state;
     reg hit;
     reg [9:0] col_counter;
 
@@ -247,26 +248,32 @@ module tracer(
                     state <= CHECK;
                 end
                 CHECK: begin
+                    // Check if we've hit a wall yet.
                     if (map_val!=0) begin
                         // Hit a wall.
                         // $display(
                         //     "HIT:   Frame:%d col:%d X:%d Y:%d trackXdist:%b trackYdist:%b side:%b visualWallDist:%f heightScale:%f wallHeight16:%d",
                         //     debug_frame, col_counter, mapX, mapY, trackXdist, trackYdist, side, visualWallDist*`SF, heightScale*`SF, wallHeight16
                         // );
-                        store <= 1;
-                        if (col_counter == 575) begin
-                            // No more columns to trace.
-                            state <= DONE;
-                        end else begin
-                            // Start the next column.
-                            col_counter <= col_counter + 1;
-                            rayDirX <= rayDirX + rayIncX;
-                            rayDirY <= rayDirY + rayIncY;
-                            state <= INIT;
-                        end
+                        //SMELL: This extra step is in here to help with timing, i.e. setup violations.
+                        state <= HIT;
                     end else begin
-                        // No hit yet.
+                        // No hit yet; keep going.
                         state <= STEP;
+                    end
+                end
+                HIT: begin
+                    // Hit a wall.
+                    store <= 1;
+                    if (col_counter == 575) begin
+                        // No more columns to trace.
+                        state <= DONE;
+                    end else begin
+                        // Start the next column.
+                        col_counter <= col_counter + 1;
+                        rayDirX <= rayDirX + rayIncX;
+                        rayDirY <= rayDirY + rayIncY;
+                        state <= INIT;
                     end
                 end
                 DONE: begin

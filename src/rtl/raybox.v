@@ -47,6 +47,7 @@ module raybox(
     localparam MAP_SCALE        = 4;                        // Power of 2 scaling for map overlay size.
     localparam MAP_OVERLAY_SIZE = (1<<(MAP_SCALE))*16+1;    // Total size of map overlay.
 
+/* verilator lint_off REALCVT */
     localparam integer facingXstart     = `realF( 0.0); // ...
     localparam integer facingYstart     = `realF(-1.0); // ...Player is facing (0,-1); upwards on map.
     localparam integer vplaneXstart     = `realF( 0.5); // Viewplane dir is (0.5,0); right...
@@ -218,10 +219,10 @@ module raybox(
     //SMELL: Should this be a separate module, too, for clarity?
     wire        in_map_overlay  = show_map && h < MAP_OVERLAY_SIZE && v < MAP_OVERLAY_SIZE;
     wire        in_map_gridline = in_map_overlay && (h[MAP_SCALE-1:0]==0||v[MAP_SCALE-1:0]==0);
-    wire        in_player_cell  = in_map_overlay && (playerX[13:`Qn]==h[MAP_SCALE+3:MAP_SCALE] && playerY[13:`Qn]==v[MAP_SCALE+3:MAP_SCALE]);
+    wire        in_player_cell  = in_map_overlay && (playerX[3:0]==h[MAP_SCALE+3:MAP_SCALE] && playerY[3:0]==v[MAP_SCALE+3:MAP_SCALE]);
     wire        in_player_pixel = in_player_cell
-                                    && (playerX[`Qn-1:`Qn-MAP_SCALE]==h[MAP_SCALE-1:0])
-                                    && (playerY[`Qn-1:`Qn-MAP_SCALE]==v[MAP_SCALE-1:0]);
+                                    && (playerX[-1:-MAP_SCALE]==h[MAP_SCALE-1:0])
+                                    && (playerY[-1:-MAP_SCALE]==v[MAP_SCALE-1:0]);
 
     assign r =
         in_player_pixel ?   2'b11 :             // Player pixel in map is yellow.
