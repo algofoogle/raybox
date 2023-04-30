@@ -70,11 +70,12 @@ module tracer(
     localparam STEP     = 1;
     localparam CHECK    = 2;
     localparam HIT      = 3;
-    localparam DONE     = 4;
-    localparam STOP     = 5;
-    localparam LCLEAR   = 6;
-    localparam RCLEAR   = 7;
-    localparam DEBUG    = 8;
+    localparam STORE    = 4;
+    localparam DONE     = 5;
+    localparam STOP     = 6;
+    localparam LCLEAR   = 7;
+    localparam RCLEAR   = 8;
+    localparam DEBUG    = 9;
 
     reg [3:0] state;
     reg hit;
@@ -260,12 +261,12 @@ module tracer(
                     // Check if we've hit a wall yet.
                     if (map_val!=0) begin
                         // Hit a wall.
-                        if (col_counter >= 295 && col_counter <= 305) begin
-                            $display(
-                                "HIT:   Frame:%d col:%d X:%d Y:%d trackXdist:%b trackYdist:%b side:%b visualWallDist:%f heightScale:%f height:%d",
-                                debug_frame, col_counter, mapX, mapY, trackXdist, trackYdist, side, `Freal(visualWallDist), `Freal(heightScale), height
-                            );
-                        end
+                        // if (col_counter >= 295 && col_counter <= 305) begin
+                        //     $display(
+                        //         "HIT:   Frame:%d col:%d X:%d Y:%d trackXdist:%b trackYdist:%b side:%b visualWallDist:%f heightScale:%f height:%d",
+                        //         debug_frame, col_counter, mapX, mapY, trackXdist, trackYdist, side, `Freal(visualWallDist), `Freal(heightScale), height
+                        //     );
+                        // end
                         //SMELL: This extra step is in here to help with timing, i.e. setup violations.
                         state <= HIT;
                     end else begin
@@ -276,6 +277,12 @@ module tracer(
                 HIT: begin
                     // Hit a wall.
                     store <= 1;
+                    //SMELL: Dummy cycle to complete the write before we update for next ray.
+                    state <= STORE;
+                end
+                STORE: begin
+                    // Store is finished.
+                    store <= 0;
                     if (col_counter == 575) begin
                         // No more columns to trace.
                         state <= DONE;
