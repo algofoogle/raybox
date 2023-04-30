@@ -47,10 +47,10 @@ module raybox(
     localparam MAP_SCALE        = 4;                        // Power of 2 scaling for map overlay size.
     localparam MAP_OVERLAY_SIZE = (1<<(MAP_SCALE))*16+1;    // Total size of map overlay.
 
-    localparam facingXstart     = `realF( 0.0); // ...
-    localparam facingYstart     = `realF(-1.0); // ...Player is facing (0,-1); upwards on map.
-    localparam vplaneXstart     = `realF( 0.5); // Viewplane dir is (0.5,0); right...
-    localparam vplaneYstart     = `realF( 0.0); // ...makes FOV 45deg. Too small, but makes maths easy for now.
+    localparam integer facingXstart     = `realF( 0.0); // ...
+    localparam integer facingYstart     = `realF(-1.0); // ...Player is facing (0,-1); upwards on map.
+    localparam integer vplaneXstart     = `realF( 0.5); // Viewplane dir is (0.5,0); right...
+    localparam integer vplaneYstart     = `realF( 0.0); // ...makes FOV 45deg. Too small, but makes maths easy for now.
 
 `ifdef DUMMY_MAP
     localparam playerXstartcell = 1;
@@ -60,10 +60,10 @@ module raybox(
     localparam playerYstartcell = 14;
 `endif
     // Player's full start position is in the middle of a cell:
-    localparam playerXstartpos  = `realF(playerXstartcell+0.5);
-    localparam playerYstartpos  = `realF(playerYstartcell+0.5);
+    localparam integer playerXstartpos  = `realF(playerXstartcell+0.5);
+    localparam integer playerYstartpos  = `realF(playerYstartcell+0.5);
 
-    localparam playerMove       = `realF(0.005);
+    localparam integer playerMove       = `realF(0.005);
 
     reg `F playerX;
     reg `F playerY;

@@ -10,7 +10,7 @@
 `define intF(i)     ((i)<<<16)      // Convert const int to F.
 `define Fint(f)     ((f)>>>16)      // Convert F to int.
 
-`define realF(r)    ($rtoi((r)*(2.0**16)))
+`define realF(r)    (((r)*(2.0**16)))
 `define Freal(f)    ((f)*(2.0**-16))
 
 `define FF(f)       f[15:-16]       // Get full F out of something bigger (e.g. F2).
