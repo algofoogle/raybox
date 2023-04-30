@@ -53,16 +53,19 @@ module raybox(
     localparam integer vplaneXstart     = `realF( 0.5); // Viewplane dir is (0.5,0); right...
     localparam integer vplaneYstart     = `realF( 0.0); // ...makes FOV 45deg. Too small, but makes maths easy for now.
 
+    localparam playerXstartoffset = 0.25;    // Should normally be 0.5, but for debugging might need to be other values.
+    localparam playerYstartoffset = 0.50;
+
 `ifdef DUMMY_MAP
     localparam playerXstartcell = 1;
-    localparam playerYstartcell = 11;
+    localparam playerYstartcell = 13;
 `else
     localparam playerXstartcell = 8;
     localparam playerYstartcell = 14;
 `endif
     // Player's full start position is in the middle of a cell:
-    localparam integer playerXstartpos  = `realF(playerXstartcell+0.5);
-    localparam integer playerYstartpos  = `realF(playerYstartcell+0.5);
+    localparam integer playerXstartpos  = `realF(playerXstartcell+playerXstartoffset);
+    localparam integer playerYstartpos  = `realF(playerYstartcell+playerYstartoffset);
 
     localparam integer playerMove       = `realF(0.005);
 

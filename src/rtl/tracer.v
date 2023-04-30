@@ -106,8 +106,8 @@ module tracer(
     //SMELL: Below, if we only focus on the fractional bits (i.e. lower 16 or whatever), then
     // instead of intF(1)-playerXfrac we could do (1 + ~playerXfrac) or simply (-playerXfrac).
     // I think partialX and partialY will always be positive anyway...?
-    wire `f partialX    = rxi ? `intF(1)-playerXfrac : playerXfrac;
-    wire `f partialY    = ryi ? `intF(1)-playerYfrac : playerYfrac;
+    wire `f partialX    = rxi ? -playerXfrac : playerXfrac; //`intF(1)-playerXfrac : playerXfrac;
+    wire `f partialY    = ryi ? -playerYfrac : playerYfrac; //`intF(1)-playerYfrac : playerYfrac;
 
     // What distance (i.e. what extension of our ray's vector) do we go when travelling by 1 cell in the...
     wire `F stepXdist;  // ...map X direction...
@@ -168,8 +168,8 @@ module tracer(
     //SMELL: *** IS A BETTER WAY *** to determine stop to look for mapX/Y hitting a map boundary?
     //SMELL: We really need to think about how this works in DDA, because just the right number
     // of bits will ensure we don't have a sign flip error that breaks the comparators in the DDA loop.
-    wire stopX = satX || `FI(stepXdist) > 15;
-    wire stopY = satY || `FI(stepYdist) > 15;
+    // wire stopX = satX || `FI(stepXdist) > 400;
+    // wire stopY = satY || `FI(stepYdist) > 400;
 
     //DEBUG: Used to count actual clock cycles it takes to trace a frame:
     integer trace_cycle_count;
@@ -236,7 +236,7 @@ module tracer(
                 STEP: begin
                     //SMELL: Can we explicitly set different states to match which trace/step we're doing?
                     // Might be easier to read than this muck.
-                    if (stopY || (!stopX && trackXdist < trackYdist)) begin
+                    if (trackXdist < trackYdist) begin
                         mapX <= rxi ? mapX+1 : mapX-1;
                         trackXdist <= trackXdist + stepXdist;
                         side <= 0;
@@ -245,6 +245,15 @@ module tracer(
                         trackYdist <= trackYdist + stepYdist;
                         side <= 1;
                     end
+                    // if (stopY || (!stopX && trackXdist < trackYdist)) begin
+                    //     mapX <= rxi ? mapX+1 : mapX-1;
+                    //     trackXdist <= trackXdist + stepXdist;
+                    //     side <= 0;
+                    // end else begin
+                    //     mapY <= ryi ? mapY+1 : mapY-1;
+                    //     trackYdist <= trackYdist + stepYdist;
+                    //     side <= 1;
+                    // end
                     state <= CHECK;
                 end
                 CHECK: begin
