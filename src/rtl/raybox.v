@@ -17,9 +17,7 @@
 `default_nettype none
 `timescale 1ns / 1ps
 
-// `define SIM_H_HELPER
-
-`define DUMMY_MAP   // If defined, map is made by boolean logic instead of ROM.
+`define DUMMY_MAP   // If defined, map is made by combo logic instead of ROM.
 
 `include "fixed_point_params.v"
 
@@ -49,12 +47,11 @@ module raybox(
     localparam MAP_SCALE        = 4;                        // Power of 2 scaling for map overlay size.
     localparam MAP_OVERLAY_SIZE = (1<<(MAP_SCALE))*16+1;    // Total size of map overlay.
 
-    localparam facingXstart =  0 << `Qn;
-    localparam facingYstart = -1 << `Qn;
-    localparam vplaneXstart = 16'b0_00000_1000000000;
-    localparam vplaneYstart =  0 << `Qn;
-    // localparam playerXstartcell = 12;
-    // localparam playerYstartcell = 14;
+    localparam facingXstart     = `realF( 0.0); // ...
+    localparam facingYstart     = `realF(-1.0); // ...Player is facing (0,-1); upwards on map.
+    localparam vplaneXstart     = `realF( 0.5); // Viewplane dir is (0.5,0); right...
+    localparam vplaneYstart     = `realF( 0.0); // ...makes FOV 45deg. Too small, but makes maths easy for now.
+
 `ifdef DUMMY_MAP
     localparam playerXstartcell = 1;
     localparam playerYstartcell = 11;
@@ -62,71 +59,61 @@ module raybox(
     localparam playerXstartcell = 8;
     localparam playerYstartcell = 14;
 `endif
-    // localparam playerXstartcell = 3;
-    // localparam playerYstartcell = 11;
-    localparam playerXstartpos  = (playerXstartcell << `Qn) + 16'b1000000000;
-    localparam playerYstartpos  = (playerYstartcell << `Qn) + 16'b1000000000;
+    // Player's full start position is in the middle of a cell:
+    localparam playerXstartpos  = `realF(playerXstartcell+0.5);
+    localparam playerYstartpos  = `realF(playerYstartcell+0.5);
 
-    assign speaker = 0;
+    localparam playerMove       = `realF(0.005);
+
+    reg `F playerX;
+    reg `F playerY;
+    reg `F facingX;     // Heading is the vector of the direction the player is facing.
+    reg `F facingY;
+    reg `F vplaneX;     // Viewplane vector (typically 'facing' rotated clockwise by 90deg and then scaled).
+    reg `F vplaneY;     // (which could also be expressed as vx=-fy, vy=fx, then scaled).
+
+
+    assign speaker = 0; // Speaker is unused for now.
 
     // Outputs from vga_sync:
-    wire [9:0]  h;
-    wire [9:0]  v;
-    wire        visible;
-    wire [10:0] frame;
+    wire [9:0]  h;          // Horizontal scan position (i.e. X pixel).
+    wire [9:0]  v;          // Vertical scan position (Y).
+    wire        visible;    // Are we in the visible region of the screen?
+    wire [10:0] frame;      // Frame counter (0..2047); mostly unused.
+    // `tick` pulses once, with the clock, at the start of a frame, to signal that animation can happen:
     wire        tick = h==0 && v==0;
-    
+
     assign px = h;
     assign py = v;
-    assign frame_num = frame;
+    assign frame_num = frame;   //SMELL: Work on getting rid of the need for this.
 
-    reg `Fixed playerX;
-    reg `Fixed playerY;
-    reg `Fixed facingX;     // Heading is the vector of the direction the player is facing.
-    reg `Fixed facingY;
-    reg `Fixed vplaneX;     // Viewplane vector (typically 'facing' rotated clockwise by 90deg and then scaled).
-    reg `Fixed vplaneY;     // (which could also be expressed as vx=-fy, vy=fx, then scaled).
-    //NOTE: raybox-app original FOV is 70deg, which coincidentally works out to be almost exactly
-    // a 0.7 scaling factor: tan(70/2) = 0.7002...
-    // No scaling factor (i.e. 1.0) would be easiest/simplest, and that means an
-    // FOV of 90deg, but maybe that's too much?
-    // If we use a 0.75 scaling factor, maybe this means simpler multiply logic?
-    // atan(0.75) ~= 36.87deg, so an FOV of ~73.74deg
-
-    // initial begin
-    //     $dumpfile ("raybox.vcd");
-    //     $dumpvars (0, tracer);
-    // end
-
+    // General reset and game state animation (namely, motion):
     always @(posedge clk) begin
         if (reset) begin
-            // Set starting position of the player to (8.5,14.5) using fixed-point:
-            playerX <=  playerXstartpos; // 8.5
-            playerY <=  playerYstartpos; // 14.5
+            // Set player's starting position and direction:
+            playerX <= playerXstartpos;
+            playerY <= playerYstartpos;
 
-            facingX <=  facingXstart;
-            facingY <=  facingYstart; //-1 << `Qn; // 16'b1_11111_0000000000
+            facingX <= facingXstart;
+            facingY <= facingYstart;
 
-            // vplaneX <= 16'b0_00000_1000000000;   // 0.5 in Q6.10; means an FOV of about 53deg
-            // vplaneX <= 16'b0_00000_1100000000;   // 0.75 in Q6.10; means an FOV of about 74deg
-            // vplaneX <=  1 << `Qn; // 16'b0_00001_0000000000    //NOTE: For now, this means an FOV of 90deg.
-            // vplaneY <=  0 << `Qn;
             vplaneX <= vplaneXstart;
             vplaneY <= vplaneYstart;
         end else if (tick) begin
             // Animation can happen here.
-						// Handle player motion:
+            // Handle player motion:
             if (moveL)
-                playerX <= playerX - 8; // 1/128th of a cell, or 0.0078125.
+                playerX <= playerX - playerMove;
             else if (moveR)
-                playerX <= playerX + 8;
+                playerX <= playerX + playerMove;
 
             if (moveF)
-                playerY <= playerY - 8;
+                playerY <= playerY - playerMove;
             else if (moveB)
-                playerY <= playerY + 8;
+                playerY <= playerY + playerMove;
 
-//            playerX <= playerXstartpos + {2'b0,frame,3'b0};
+            //SMELL: Ideally *diagonal* motion should be a vector equal to playerMove,
+            // i.e. move by 1/sqrt(2) on both X and Y.
         end
     end
     always @(negedge reset) begin
@@ -137,13 +124,7 @@ module raybox(
 
     // RGB output gating:
     wire [1:0]  r, g, b; // Raw R, G, B values to be gated by 'visible'.
-`ifdef SIM_H_HELPER
-    //SMELL: This is a kludge to help the simulator get its horizontal alignment right:
-    wire [1:0]  p00 = (h==0&&v==0 ? 2'b11 : 0);
-    assign red  = visible ? r|p00 : 0;
-`else
     assign red  = visible ? r : 0;
-`endif
     assign green= visible ? g : 0;
     assign blue = visible ? b : 0;
 
@@ -159,29 +140,11 @@ module raybox(
         .frame  (frame)
     );
 
-    // Are we in VBLANK, i.e. no screen data reads needed, no visible rendering taking place?
-    wire        vblank = v>=SCREEN_HEIGHT;
 
-    // Are we in the ceiling or floor part of the frame?
-    wire        ceiling = v<HALF_HEIGHT;
-
-    // Determine background colour:
+    wire        vblank = v>=SCREEN_HEIGHT;  // VBLANK: Not rendering, so no screen data reads needed.
+    wire        ceiling = v<HALF_HEIGHT;    // Are we in the ceiling or floor part of the frame?
     wire [1:0]  background = ceiling ? 2'b01 : 2'b10;    // Ceiling is dark grey, floor is light grey.
-
-    // Write to trace_buffer only if we're in VBLANK and we have an input height to write:
-    wire        trace_we; // Driven by tracer. When NOT active, the trace_buffer remains in read mode.
-
-    // Trace column is selected either by render read loop, or
-    // by tracer state machine:
-    wire        tracer_side;
-    wire [7:0]  tracer_height;
-    wire [9:0]  tracer_addr;    // Driven by tracer directly.
-    wire [9:0]  trace_column = visible ? h : tracer_addr; //SMELL: Should we rename trace_column to buffer_column? Less confusing.
-
-    // During trace_buffer write, we drive wall_height directly.
-    // Otherwise, set it to Z because trace_buffer drives it:
-    wire        wall_side    = trace_we ? tracer_side            :  1'bz;
-    wire [9:0]  wall_height  = trace_we ? {2'b00,tracer_height}  : 10'bz; //SMELL: This is only [9:0] to avoid in_wall logic warnings.
+    wire        trace_we; // trace_buffer Write Enable; tracer-driven. When off, trace_buffer stays in read mode.
 
     // During VBLANK, tracer writes to memory.
     // During visible, memory reads get wall column heights/sides to render.
@@ -189,13 +152,24 @@ module raybox(
     // we can do away with bi-dir (inout) ports, and simplify it in general.
     trace_buffer traces(
         .clk    (clk),
-        .column (trace_column),
+        .column (buffer_column),
         .side   (wall_side),
         .height (wall_height[7:0]),
-        .cs     (1),    // Redundant?
+        .cs     (1),    //SMELL: Redundant?
         .we     (trace_we),
         .oe     (!trace_we)
     );
+
+    // Trace column is selected either by screen render read loop, or by tracer state machine:
+    wire [9:0]  buffer_column = visible ? h : tracer_addr;
+    wire [9:0]  tracer_addr;    // Driven by tracer directly...
+    wire        tracer_side;    // ...
+    wire [7:0]  tracer_height;  // .
+
+    // During trace_buffer write, we drive wall_height directly.
+    // Otherwise, set it to Z because trace_buffer drives it:
+    wire        wall_side    = trace_we ? tracer_side            :  1'bz;
+    wire [9:0]  wall_height  = trace_we ? {2'b00,tracer_height}  : 10'bz; //SMELL: [9:0], only to avoid in_wall logic warnings.
 
     wire [3:0] map_row, map_col;
     wire [1:0] map_val;
@@ -221,24 +195,27 @@ module raybox(
         .height (tracer_height)
     );
 
-    // Map ROM, both for tracing, and for optional overlay:
+    // Map ROM, both for tracing, and for optional show_map overlay:
     map_rom map(
         .col    (visible ? h[MAP_SCALE+3:MAP_SCALE] : map_col),
         .row    (visible ? v[MAP_SCALE+3:MAP_SCALE] : map_row),
         .val    (map_val)
     );
 
-    // Are we rendering wall or background in this pixel?
+    // Considering vertical position: Are we rendering wall or background in this pixel?
     wire        in_wall = (HALF_HEIGHT-wall_height) <= v && v <= (HALF_HEIGHT+wall_height);
 
     // Are we in the border area?
     //SMELL: This conceals some slight rendering glitches that we really should fix.
     wire        in_border = h<66 || h>=574;
 
-    // Is this a dead column, i.e. height is 0?
+    // Is this a dead column, i.e. height is 0? This shouldn't happen normally,
+    // but if it does (either due to a glitch or debug purpose) then it should render
+    // this pixel as magenta:
     wire        dead_column = wall_height==0;
 
     // Are we in the region of the screen where the map overlay must currently render?
+    //SMELL: Should this be a separate module, too, for clarity?
     wire        in_map_overlay  = show_map && h < MAP_OVERLAY_SIZE && v < MAP_OVERLAY_SIZE;
     wire        in_map_gridline = in_map_overlay && (h[MAP_SCALE-1:0]==0||v[MAP_SCALE-1:0]==0);
     wire        in_player_cell  = in_map_overlay && (playerX[13:`Qn]==h[MAP_SCALE+3:MAP_SCALE] && playerY[13:`Qn]==v[MAP_SCALE+3:MAP_SCALE]);
@@ -278,5 +255,15 @@ module raybox(
                                 2'b11 :         // Bright wall side.
                                 2'b10 :         // Dark wall side.
                             background;         // Ceiling/floor background.
+
+    // reg `F a;
+    // reg `F b;
+    // initial begin
+    //     a = playerXstartpos;
+    //     b = playerYstartpos;
+    //     $display("Player: %b (%f), %b (%f)", a, `Freal(a), b, `Freal(b));
+    //     $finish;
+    // end
+
 
 endmodule

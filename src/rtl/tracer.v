@@ -13,6 +13,30 @@
 // limitations under the License.
 // SPDX-License-Identifier: Apache-2.0
 
+// This module does basic ray-casting through a map to calculate distances
+// to wall hits (and ultimately column heights) of each vertical column of
+// the screen.
+//
+// It more-or-less implements this in Verilog:
+// https://github.com/algofoogle/raybox-app/blob/22195e6b0482bc0c244ebb3a2c79cb7015d1c713/src/raybox.cpp#L340
+//
+// To keep this simple for now, I'm going for a screen width of 512,
+// because it makes fixed-point division so much easier.
+//
+// Note that this is a state machine, and runs only while we're in VBLANK,
+// i.e. when we're beyond the normal 480 VGA lines.
+// How much time do we have?
+// VBLANK is for v in [480,524], which is 45 lines in total.
+// Each line is 800 clocks: 36,000 clocks in total.
+// In a simple 16x16 map, I've observed that 512 columns can use up to 10,000 cycles.
+// If we need more clocks, we can either:
+//  1.  Optimise the FSM (though this won't give us much more).
+//  2.  Do more checks in parallel (complex, but doable, if there is enough chip space and STA is OK).
+//  3.  Give up more lines for more tracing time, e.g. 470 VGA lines for the main view area
+//      would still look fine, but gives us 10 extra lines, so 8,000 extra cycles (44,000 total).
+//  4.  Implement a faster internal clock. We know 50MHz should be fine, but with sky130
+//      we could get to 100MHz without too much trouble, or even 200MHz?
+
 
 `default_nettype none
 `timescale 1ns / 1ps
@@ -23,12 +47,12 @@ module tracer(
     input               clk,
     input               reset,
     input               enable,             // High when we want the tracer to operate.
-    input       `Fixed  playerX,            // Position of the player.
-    input       `Fixed  playerY,            //SMELL: Player position must be positive, in fact [0,15]
-    input       `Fixed  facingX,            // Vector direction the player is facing.
-    input       `Fixed  facingY,            //
-    input       `Fixed  vplaneX,            // Viewplane vector.
-    input       `Fixed  vplaneY,
+    input       `F      playerX,            // Position of the player.
+    input       `F      playerY,            //SMELL: Player position must be positive, in fact [0,15]
+    input       `F      facingX,            // Vector direction the player is facing.
+    input       `F      facingY,            //
+    input       `F      vplaneX,            // Viewplane vector.
+    input       `F      vplaneY,
     input       [10:0]  debug_frame,
 
     output reg          store,              // Driven high when we've got a result to store.
@@ -41,99 +65,113 @@ module tracer(
     output      [3:0]   map_row,
     input       [1:0]   map_val
 );
-    // How much time do we have?
-    // VBLANK is for v in [480,524], which is 45 lines in total.
-    // Each line is 800 clocks: 36,000 clocks in total.
-    // Now let's assume we actually need 2 clocks per operation: 18,000 op cycles.
-    // We have 640 columns to trace, so a budget of about 28 ops per ray if we want to do full horizontal resolution.
-    // If our external clock was doubled (50MHz instead of 25) then we could get 56 ops.
-    // If we used the internal DLL to get a 100MHz internal clock, we could get 112 ops.
-    // SKY130 can supposedly go faster than that internally (maybe 200MHz, even)?
 
-    // Implement this in Verilog:
-    // https://github.com/algofoogle/raybox-app/blob/22195e6b0482bc0c244ebb3a2c79cb7015d1c713/src/raybox.cpp#L340
+    localparam INIT     = 0;
+    localparam STEP     = 1;
+    localparam CHECK    = 2;
+    localparam DONE     = 3;
+    localparam STOP     = 4;
+    localparam DEBUG    = 5;
+    localparam LCLEAR   = 6;
+    localparam RCLEAR   = 7;
 
+    reg [2:0] state;
+    reg hit;
     reg [9:0] col_counter;
 
     //SMELL: Roll these X,Y pairs up into 1 line per vector:
-    reg `Int    mapX;           // Map cell we're testing.
-    reg `Int    mapY;           //
-    reg `Fixed  rayDirX;        // Ray direction vector.
-    reg `Fixed  rayDirY;        //
-    wire rxi =  (rayDirX>0);    // Is ray X direction positive?
-    wire ryi =  (rayDirY>0);    // Is ray Y direction positive?
-    reg `Fixed  rayIncX;        // What increment should we add to the ray direction per screen column?
-    reg `Fixed  rayIncY;        //
+    reg `I      mapX;           // Map cell we're testing...
+    reg `I      mapY;           // ...
+    reg `F      rayDirX;        // Ray direction vector...
+    reg `F      rayDirY;        // ...
+    wire rxi =  rayDirX > 0;    // Is ray X direction positive?
+    wire ryi =  rayDirY > 0;    // Is ray Y direction positive?
+    reg `F      rayIncX;        // What increment should we add to the ray direction per screen column...
+    reg `F      rayIncY;        // ...?
     // trackXdist and trackYdist are not a vector; they're separate trackers
     // for distance travelled along X and Y gridlines:
-    reg `Fixed  trackXdist;
-    reg `Fixed  trackYdist;
+    reg `F      trackXdist;
+    reg `F      trackYdist;
 
-    reg [2:0] state;
+    //SMELL: Do these need to be signed? They should only ever be positive, anyway.
+    // Get integer player position:
+    wire `I playerXint  = `FI(playerX);
+    wire `I playerYint  = `FI(playerY);
+    // Get fractional player position:
+    wire `f playerXfrac = `Ff(playerX);
+    wire `f playerYfrac = `Ff(playerY);
 
-    reg hit;
+    // Work out size of the initial partial ray step, and whether it's towards a lower or higher cell:
+    //SMELL: Below, if we only focus on the fractional bits (i.e. lower 16 or whatever), then
+    // instead of intF(1)-playerXfrac we could do (1 + ~playerXfrac) or simply (-playerXfrac).
+    // I think partialX and partialY will always be positive anyway...?
+    wire `f partialX    = rxi ? `intF(1)-playerXfrac : playerXfrac;
+    wire `f partialY    = ryi ? `intF(1)-playerYfrac : playerYfrac;
 
-    localparam INIT = 0;
-    localparam STEP = 1;
-    localparam CHECK = 2;
-    localparam DONE = 3;
-    localparam STOP = 4;
-    localparam DEBUG = 5;
-    localparam LCLEAR = 6;
-    localparam RCLEAR = 7;
-
-    //SMELL: Should any of these be signed? They should only ever be positive, anyway.
-    wire signed [5:0]  playerXint  = playerX[15:`Qn];
-    wire signed [5:0]  playerYint  = playerY[15:`Qn];
-    wire [15:0] playerXfrac = playerX & 16'b0_00000_1111111111;
-    wire [15:0] playerYfrac = playerY & 16'b0_00000_1111111111;
-    wire [15:0] partialX    = rxi ? (1<<`Qn)-playerXfrac : playerXfrac;
-    wire [15:0] partialY    = ryi ? (1<<`Qn)-playerYfrac : playerYfrac;
-    wire [31:0] trackXinit  = {16'b0,stepXdist} * {16'b0,partialX};
-    wire [31:0] trackYinit  = {16'b0,stepYdist} * {16'b0,partialY};
-
-    wire `Fixed stepXdist;
-    wire `Fixed stepYdist;
-    wire satX;
-    wire satY;
-    wire satHeight;
-    //SMELL: To save space, we could have just one reciprocal, and use different
-    // states to share it:
+    // What distance (i.e. what extension of our ray's vector) do we go when travelling by 1 cell in the...
+    wire `F stepXdist;  // ...map X direction...
+    wire `F stepYdist;  // ...may Y direction...
+    // ...which are values generated combinationally by the `reciprocal` instances below.
+    //NOTE: If we needed to save space, we could have just one reciprocal,
+    // and use different states to share it:
     reciprocal flipX        (.i_data(rayDirX),          .i_abs(1), .o_data(stepXdist),  .o_sat(satX));
     reciprocal flipY        (.i_data(rayDirY),          .i_abs(1), .o_data(stepYdist),  .o_sat(satY));
     reciprocal height_scaler(.i_data(visualWallDist),   .i_abs(1), .o_data(heightScale),.o_sat(satHeight));
+    // These capture the "saturation" (i.e. overflow) state of our reciprocal calculators:
+    wire satX;
+    wire satY;
+    wire satHeight;
 
+    // Generate the initial tracking distances, as a portion of the full
+    // step distances, relative to where our player is (fractionally) in the map cell:
+    //SMELL: These only needs to capture the middle half of the result,
+    // i.e. if we're using Q16.16, our result should still be the [15:-16] bits
+    // extracted from the product:
+    wire `F2 trackXinit = stepXdist * partialX;
+    wire `F2 trackYinit = stepYdist * partialY;
+
+    // Send the current tested map cell to the map ROM:
     assign map_col = mapX[3:0];
     assign map_row = mapY[3:0];
 
-    wire [15:0] visualWallDist = side ? trackYdist-stepYdist : trackXdist-stepXdist;
-    wire [15:0] heightScale;
+    wire `F visualWallDist = side ? trackYdist-stepYdist : trackXdist-stepXdist;
+    wire `F heightScale;
 
     // Use a wall reference height of 256, which makes the maths simpler
     // (i.e. simple bit extraction instead of a multiplier), and happens to
     // also make the aspect ratio closer to square for each map cell:
     wire [7:0] wallHeight =
-        (heightScale >= (1<<`Qn)) ? 255 : // Cap height at 255 if heightScale >= 1.0
-        heightScale[9:2];  // Else this means: *256 (ref. height), /1024 (to get integer part).
+        (heightScale >= `intF(1)) ? 255 : // Cap height at 255 if heightScale >= 1.0
+        heightScale[-1:-8];  // Else we just need the upper 8 bits of the fractional part.
+    //SMELL: Yes, this is hard-coded, but it works given we are assuming a max height of 255
+    // (so, a full 8-bit range), and hence the upper 8 bits of precision would effectively
+    // be multiplied by 256 anyway. Example:
+    // - If heightScale is 1.0 or 1.5, then the first condition catches it and clamps it to 255.
+    // - If heightScale is 0.75, then the second condition should yield 256*0.75=192.
+    //   It accomplishes this by just grabbing the upper 8 fractional bits: b.1100'0000
+    //   which is 192.
+    //NOTE: First (cap) condition could probably just be: |`FI(heightScale).
 
-    // wire [31:0] wallHeight32 = (heightScale > (1<<`Qn)) ? (240<<`Qn) : 240 * {16'b0,heightScale};
-    // wire [15:0] wallHeight16 = wallHeight32[25:10];
-    // assign height = (state == LCLEAR || state == RCLEAR) ? 0 : wallHeight16[7:0];
-
+    // Determine the final height value we'll write:
     assign height =
-        (state == LCLEAR || state == RCLEAR) ? 0 :  // 
+        // Write 0 if we're in the "dead" region. //SMELL: We don't want this in future.
+        (state == LCLEAR || state == RCLEAR) ? 0 :
+        // Values above 240 are CURRENTLY too high, so clamp:
         (wallHeight > 240) ? 240 :
         wallHeight;
+    // Output current column counter value:
     assign column = col_counter;
 
-    //SMELL: Stop when map coordinates would wrap.
-    wire stopX = satX || stepXdist[14];//stepXdist>(12<<`Qn);//[14];
-    wire stopY = satY || stepYdist[14];//stepYdist>(12<<`Qn);//[14];
+    // Stop tracking an axis when saturated, or when map coordinates would wrap:
+    //SMELL: We could probably ignore satX and satY, because the other condition will always win...?
+    //SMELL: *** IS A BETTER WAY *** to determine stop to look for mapX/Y hitting a map boundary?
+    //SMELL: We really need to think about how this works in DDA, because just the right number
+    // of bits will ensure we don't have a sign flip error that breaks the comparators in the DDA loop.
+    wire stopX = satX || `FI(stepXdist) > 15;
+    wire stopY = satY || `FI(stepYdist) > 15;
 
-    //NOTE: To keep this simple for now, I'm going for a screen width of 512,
-    // because it makes fixed-point division so much easier.
-
-    integer trace_cycle_count; //DEBUG: Used to count actual clock cycles it takes to trace a frame.
+    //DEBUG: Used to count actual clock cycles it takes to trace a frame:
+    integer trace_cycle_count;
 
     always @(posedge clk) begin
         if (reset || !enable) begin
@@ -155,8 +193,8 @@ module tracer(
             // Divide vplane vector by 256 to get the ray increment per each sreen column
             // when using a 512w render area:
             //SMELL: Do we *need* to register these, or can they just be a wire?
-            rayIncX <= vplaneX >> 8;    //NOTE: Verify sign extension happens here.
-            rayIncY <= vplaneY >> 8;    //NOTE: Verify sign extension happens here.
+            rayIncX <= vplaneX >>> 8;    // >>>8 (sign-ext SHR) because we want div-by-256 no matter what FP depth.
+            rayIncY <= vplaneY >>> 8;    //NOTE: Verify sign extension happens here.
             //SMELL: Q6.10 might not have enough precision to do the resolution we want
             // for our rotations, so either we need more precision, or bresenham/DDA approach,
             // or some other way to calculate the ray.
@@ -164,7 +202,7 @@ module tracer(
             state <= LCLEAR;
         end else begin
             trace_cycle_count = trace_cycle_count + 1; //DEBUG
-            // Oh, we must be enabled (and not in reset) so we're a free-running system now...
+            // We must be enabled (and not in reset) so we're a free-running system now...
             case (state)
                 LCLEAR: begin
                     store <= 1;
@@ -179,12 +217,11 @@ module tracer(
                     // end
                     store <= 0;
                     // Get the cell the player's currently in:
-                    mapX <= playerXint; //>> `Qn; //fixed2int(playerX);
-                    mapY <= playerYint; //>> `Qn; //fixed2int(playerY);
+                    mapX <= playerXint;
+                    mapY <= playerYint;
                     //SMELL: Could we get better precision with these trackers, by scaling?
-                    //SMELL: Fixed multiplication needs wider registers and truncation to middle bits:
-                    trackXdist <= trackXinit[25:10];
-                    trackYdist <= trackYinit[25:10];
+                    trackXdist <= `FF(trackXinit);
+                    trackYdist <= `FF(trackYinit);
                     state <= DEBUG;
                     // state <= STEP;
                 end
@@ -196,6 +233,8 @@ module tracer(
                     state <= STEP;
                 end
                 STEP: begin
+                    //SMELL: Can we explicitly set different states to match which trace/step we're doing?
+                    // Might be easier to read than this muck.
                     if (stopY || (!stopX && trackXdist < trackYdist)) begin
                         mapX <= rxi ? mapX+1 : mapX-1;
                         trackXdist <= trackXdist + stepXdist;
