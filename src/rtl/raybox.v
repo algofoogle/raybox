@@ -42,6 +42,7 @@ module raybox(
     output          speaker
 );
 
+    localparam DEBUG_X          = 300;  // Column to highlight.
     localparam SCREEN_HEIGHT    = 480;
     localparam HALF_HEIGHT      = SCREEN_HEIGHT>>1;
     localparam MAP_SCALE        = 4;                        // Power of 2 scaling for map overlay size.
@@ -216,7 +217,7 @@ module raybox(
     // Is this a dead column, i.e. height is 0? This shouldn't happen normally,
     // but if it does (either due to a glitch or debug purpose) then it should render
     // this pixel as magenta:
-    wire        dead_column = wall_height==0;
+    wire        dead_column = wall_height==0 || h==DEBUG_X;
 
     // Are we in the region of the screen where the map overlay must currently render?
     //SMELL: Should this be a separate module, too, for clarity?

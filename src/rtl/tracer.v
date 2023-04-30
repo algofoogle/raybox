@@ -260,10 +260,12 @@ module tracer(
                     // Check if we've hit a wall yet.
                     if (map_val!=0) begin
                         // Hit a wall.
-                        // $display(
-                        //     "HIT:   Frame:%d col:%d X:%d Y:%d trackXdist:%b trackYdist:%b side:%b visualWallDist:%f heightScale:%f wallHeight16:%d",
-                        //     debug_frame, col_counter, mapX, mapY, trackXdist, trackYdist, side, visualWallDist*`SF, heightScale*`SF, wallHeight16
-                        // );
+                        if (col_counter >= 295 && col_counter <= 305) begin
+                            $display(
+                                "HIT:   Frame:%d col:%d X:%d Y:%d trackXdist:%b trackYdist:%b side:%b visualWallDist:%f heightScale:%f height:%d",
+                                debug_frame, col_counter, mapX, mapY, trackXdist, trackYdist, side, `Freal(visualWallDist), `Freal(heightScale), height
+                            );
+                        end
                         //SMELL: This extra step is in here to help with timing, i.e. setup violations.
                         state <= HIT;
                     end else begin
