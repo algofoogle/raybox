@@ -46,29 +46,30 @@ module raybox(
     localparam SCREEN_HEIGHT    = 480;
     localparam HALF_HEIGHT      = SCREEN_HEIGHT>>1;
     localparam MAP_SCALE        = 4;                        // Power of 2 scaling for map overlay size.
-    localparam MAP_OVERLAY_SIZE = (1<<(MAP_SCALE))*16+1;    // Total size of map overlay.
+    localparam MAP_OVERLAY_SIZE = (1<<(MAP_SCALE))*16+1;    // Total size of map overlay. //NOTE: *16 is map width/height in cells.
 
 /* verilator lint_off REALCVT */
-    localparam integer facingXstart     = `realF( 0.0); // ...
-    localparam integer facingYstart     = `realF(-1.0); // ...Player is facing (0,-1); upwards on map.
-    localparam integer vplaneXstart     = `realF( 0.5); // Viewplane dir is (0.5,0); right...
-    localparam integer vplaneYstart     = `realF( 0.0); // ...makes FOV 45deg. Too small, but makes maths easy for now.
+    localparam `F facingXstart     = `realF( 0.0); // ...
+    localparam `F facingYstart     = `realF(-1.0); // ...Player is facing (0,-1); upwards on map.
+    localparam `F vplaneXstart     = `realF( 0.5); // Viewplane dir is (0.5,0); right...
+    localparam `F vplaneYstart     = `realF( 0.0); // ...makes FOV 45deg. Too small, but makes maths easy for now.
 
     localparam playerXstartoffset = 0.25;    // Should normally be 0.5, but for debugging might need to be other values.
     localparam playerYstartoffset = 0.50;
 
 `ifdef DUMMY_MAP
-    localparam playerXstartcell = 1;
-    localparam playerYstartcell = 13;
+    localparam `I playerXstartcell = 1;
+    localparam `I playerYstartcell = 13;
 `else
-    localparam playerXstartcell = 8;
-    localparam playerYstartcell = 14;
+    localparam `I playerXstartcell = 8;
+    localparam `I playerYstartcell = 14;
 `endif
     // Player's full start position is in the middle of a cell:
-    localparam integer playerXstartpos  = `realF(playerXstartcell+playerXstartoffset);
-    localparam integer playerYstartpos  = `realF(playerYstartcell+playerYstartoffset);
+    localparam `F playerXstartpos  = `realF(playerXstartcell+playerXstartoffset);
+    localparam `F playerYstartpos  = `realF(playerYstartcell+playerYstartoffset);
 
-    localparam integer playerMove       = `realF(0.005);
+    localparam `F playerMove       = `realF(0.005);
+/* verilator lint_on REALCVT */
 
     reg `F playerX;
     reg `F playerY;
@@ -122,9 +123,9 @@ module raybox(
         end
     end
     always @(negedge reset) begin
-        $display("playerX=%f, playerY=%f", playerX*`SF, playerY*`SF);
-        $display("facingX=%f, facingY=%f", facingX*`SF, facingY*`SF);
-        $display("vplaneX=%f, vplaneY=%f", vplaneX*`SF, vplaneY*`SF);
+        $display("playerX=%f, playerY=%f", `Freal(playerX), `Freal(playerY));
+        $display("facingX=%f, facingY=%f", `Freal(facingX), `Freal(facingY));
+        $display("vplaneX=%f, vplaneY=%f", `Freal(vplaneX), `Freal(vplaneY));
     end
 
     // RGB output gating:

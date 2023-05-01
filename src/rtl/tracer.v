@@ -116,9 +116,9 @@ module tracer(
     // ...which are values generated combinationally by the `reciprocal` instances below.
     //NOTE: If we needed to save space, we could have just one reciprocal,
     // and use different states to share it:
-    reciprocal flipX        (.i_data(rayDirX),          .i_abs(1), .o_data(stepXdist),  .o_sat(satX));
-    reciprocal flipY        (.i_data(rayDirY),          .i_abs(1), .o_data(stepYdist),  .o_sat(satY));
-    reciprocal height_scaler(.i_data(visualWallDist),   .i_abs(1), .o_data(heightScale),.o_sat(satHeight));
+    reciprocal #(.M(`Qm),.N(`Qn)) flipX         (.i_data(rayDirX),          .i_abs(1), .o_data(stepXdist),  .o_sat(satX));
+    reciprocal #(.M(`Qm),.N(`Qn)) flipY         (.i_data(rayDirY),          .i_abs(1), .o_data(stepYdist),  .o_sat(satY));
+    reciprocal #(.M(`Qm),.N(`Qn)) height_scaler (.i_data(visualWallDist),   .i_abs(1), .o_data(heightScale),.o_sat(satHeight));
     // These capture the "saturation" (i.e. overflow) state of our reciprocal calculators:
     wire satX;
     wire satY;
