@@ -19,17 +19,18 @@ module reciprocal #(
     output  wire            o_sat   // 1=saturated
 );
 /* verilator lint_off REALCVT */
+    localparam ROUNDING_FIX = -0.5; //SMELL.
     // Find raw fixed-point value representing 1.466:
     // In  Q6.10: 1.466*1024  =  1501(.184) = 0x005DD.
     // In Q16.16: 1.466*65536 = 96075(.776) = 0x1774B (or 0x1774C if rounded UP).
     // localparam integer nb = 1.466*(2.0**N);
-    localparam [M-1:-N] n1466 = 1.466*(2.0**N); //'h1774B;      // 1.466 in QM.N
+    localparam [M-1:-N] n1466 = 1.466*(2.0**N)+ROUNDING_FIX; //'h1774B;      // 1.466 in QM.N
 
     // Find raw fixed-point value representing 1.0012:
     // In  Q6.10: 1.0012*1024  =  1025(.2288) = 0x00401.
     // In Q16.16: 1.0012*65536 = 65614(.6432) = 0x1004E (or 0x1004F if rounded UP).
     // localparam integer nd = 1.0012*(2.0**N);
-    localparam [M-1:-N] n10012 = 1.0012*(2.0**N); //'h1004E;      // 1.0012 in QM.N
+    localparam [M-1:-N] n10012 = 1.0012*(2.0**N)+ROUNDING_FIX; //'h1004E;      // 1.0012 in QM.N
 /* verilator lint_on REALCVT */
 
     localparam [M-1:-N] nSat = (1<<(M+N-1))-1; //'h7FFF_FFFF;  // Max positive integer (i.e. saturation).  /* FIXME re M,N.*/
@@ -59,7 +60,7 @@ module reciprocal #(
     wire [S:-N]         unsigned_data;
 
     /* verilator lint_off UNUSED */
-    wire [M+N-1:-M-N]   c, e;
+    wire [M*2-1:-N*2]   c, e;
     /* verilator lint_on UNUSED */
 
     assign sign = i_data[S];
@@ -70,8 +71,11 @@ module reciprocal #(
 
     assign rescale_lzc = $signed(M) - $signed(lzc_cnt);
 
-    //scale input data to be b/w .5 and 1 for accurate reciprocal result
-    assign scale_data = M >= lzc_cnt ? unsigned_data >>> (M-lzc_cnt): unsigned_data <<< (lzc_cnt - M);
+    // Scale input data to be between .5 and 1 for accurate reciprocal result
+    assign scale_data =
+        M >= lzc_cnt ?  // Is our leading digit within the integer part?
+                        unsigned_data >>> (M-lzc_cnt) : // Yes: Scale magnitude down to [0.5,1) range.
+                        unsigned_data <<< (lzc_cnt-M);  // No: Scale magnitude up to [0.5,1) range.
 
     assign a = scale_data;
 
@@ -87,13 +91,15 @@ module reciprocal #(
 
     // [M-1:M-2] are the bits that would overflow if multiplied by 4 (i.e. SHL-2):
     assign reci = |f[M-1:M-2] ? nSat : f << 2; //saturation detection and (e*4)
+    //SMELL: I think we could keep 2 extra bits of precision if we didn't simply do f<<2,
+    // but rather extracted a shifted bit range from `e`.
 
-    //rescale reci by the lzc factor
+    // Rescale reciprocal by the lzc factor
     //SMELL: Double-check this [6]; it was [4] for Q6.10, so I'm not sure how it works.
     // I think it's testing whether our rescale factor is NEGATIVE, so this would be correct as the sign bit...?
     assign rescale_data =
-        rescale_lzc[6] ?    { {(M+N){1'b0}} /* FIXME re M,N.*/ ,reci} << (~rescale_lzc + 1'b1) :
-                            { {(M+N){1'b0}} /* FIXME re M,N.*/ ,reci} >> rescale_lzc;
+        rescale_lzc[6] ? { {(M+N){1'b0}}, reci} << (~rescale_lzc + 1'b1) :
+                         { {(M+N){1'b0}}, reci} >> rescale_lzc;
 
     //Saturation logic
     //SMELL: Double-check our bit range here. In the original, the check was against [31:15], which is 17 bits,

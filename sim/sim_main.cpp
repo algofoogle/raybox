@@ -471,12 +471,12 @@ int main(int argc, char **argv) {
 #endif
 
 
-  printf("Starting simulation in ");
-  for (int c=3; c>0; --c) {
-    printf("%i... ", c);
-    fflush(stdout);
-    sleep(1);
-  }
+  // printf("Starting simulation in ");
+  // for (int c=3; c>0; --c) {
+  //   printf("%i... ", c);
+  //   fflush(stdout);
+  //   sleep(1);
+  // }
   printf("Cold start...\n");
 
   int h = 0;

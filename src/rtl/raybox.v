@@ -54,11 +54,11 @@ module raybox(
     localparam `F vplaneXstart     = `realF( 0.5); // Viewplane dir is (0.5,0); right...
     localparam `F vplaneYstart     = `realF( 0.0); // ...makes FOV 45deg. Too small, but makes maths easy for now.
 
-    localparam playerXstartoffset = 0.25;    // Should normally be 0.5, but for debugging might need to be other values.
+    localparam playerXstartoffset = 0.00;    // Should normally be 0.5, but for debugging might need to be other values.
     localparam playerYstartoffset = 0.50;
 
 `ifdef DUMMY_MAP
-    localparam `I playerXstartcell = 1;
+    localparam `I playerXstartcell = 2;
     localparam `I playerYstartcell = 13;
 `else
     localparam `I playerXstartcell = 8;
@@ -68,7 +68,7 @@ module raybox(
     localparam `F playerXstartpos  = `realF(playerXstartcell+playerXstartoffset);
     localparam `F playerYstartpos  = `realF(playerYstartcell+playerYstartoffset);
 
-    localparam `F playerMove       = `realF(0.005);
+    localparam `F playerMove       = `realF(0.0078125); // This is 1/128 ('b0.0000001000)
 /* verilator lint_on REALCVT */
 
     reg `F playerX;
@@ -261,15 +261,5 @@ module raybox(
                                 2'b11 :         // Bright wall side.
                                 2'b10 :         // Dark wall side.
                             background;         // Ceiling/floor background.
-
-    // reg `F a;
-    // reg `F b;
-    // initial begin
-    //     a = playerXstartpos;
-    //     b = playerYstartpos;
-    //     $display("Player: %b (%f), %b (%f)", a, `Freal(a), b, `Freal(b));
-    //     $finish;
-    // end
-
 
 endmodule
