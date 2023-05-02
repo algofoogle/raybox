@@ -5,6 +5,8 @@
 `define USE_SIMPLE_LZC	// Don't use the clever SystemVerilog-generator-based LZC.
 `define SMART_LZC_COUNT_WIDTH  7	// If defined, and USE_SIMPLE_LZC is NOT, then explicitly set the smart LZC count output width to this number of bits.
 
+
+
 `ifdef USE_SIMPLE_LZC
 
 module lzc #(
@@ -101,6 +103,7 @@ endmodule
 
 `else
 
+//SMELL: This doesn't seem to work as intended! Also it's very slow for Verilator.
 
 module lzc#(int WIDTH=8)
   (input wire[WIDTH-1:0] i_data,
@@ -113,6 +116,7 @@ module lzc#(int WIDTH=8)
 
    wire       allzeroes;
 
+   // f()
    function bit f(bit[WIDTH-1:0] x, int size);
       bit                        jval = 0;
       bit                        ival = 0;
@@ -127,8 +131,9 @@ module lzc#(int WIDTH=8)
 
       return ival;
 
-   endfunction // f
+   endfunction // f()
 
+   // f_input()
    function bit[WIDTH-1:0] f_input(bit[WIDTH-1:0] x, int stage );
       bit[WIDTH-1:0] dout = 0;
       int            stagePow2 = 2**stage;
@@ -139,7 +144,7 @@ module lzc#(int WIDTH=8)
            j++;
       end
       return dout;
-   endfunction
+   endfunction // f_input()
 
    genvar i;
 

@@ -30,6 +30,14 @@ module raybox(
     input           moveR,
     input           moveF,
     input           moveB,
+
+    input           write_new_position, // If true, use the `new_*` values to overwrite the design's registers.
+    input   `F      new_playerX,
+    input   `F      new_playerY,
+    input   `F      new_facingX,
+    input   `F      new_facingY,
+    input   `F      new_vplaneX,
+    input   `F      new_vplaneY,
     
     output  [1:0]   red,   // Each of R, G, and B are 2bpp, for a total of 64 possible colours.
     output  [1:0]   green,
@@ -55,14 +63,14 @@ module raybox(
     localparam `F vplaneYstart      = `realF( 0.0); // ...makes FOV 45deg. Too small, but makes maths easy for now.
 
 `ifdef DUMMY_MAP
-    localparam `I playerXstartcell  = 2;
+    localparam `I playerXstartcell  = 1;
     localparam `I playerYstartcell  = 13;
 `else
     localparam `I playerXstartcell  = 8;
     localparam `I playerYstartcell  = 14;
 `endif
     // Player's full start position is in the middle of a cell:
-    localparam playerXstartoffset   = 0.00;    // Should normally be 0.5, but for debugging might need to be other values.
+    localparam playerXstartoffset   = 0.50;    // Should normally be 0.5, but for debugging might need to be other values.
     localparam playerYstartoffset   = 0.50;
     localparam `F playerXstartpos   = `realF(playerXstartcell+playerXstartoffset);
     localparam `F playerYstartpos   = `realF(playerYstartcell+playerYstartoffset);
@@ -121,19 +129,31 @@ module raybox(
             vplaneY <= vplaneYstart;
         end else if (tick) begin
             // Animation can happen here.
-            // Handle player motion:
-            if (moveL)
-                playerX <= playerX - playerMove;
-            else if (moveR)
-                playerX <= playerX + playerMove;
+            if (write_new_position) begin
+                // Host wants to directly set new vectors:
+                //SMELL: This should be handled properly with a synchronised loading method,
+                // and consideration for crossing clock domains.
+                playerX <= new_playerX;
+                playerY <= new_playerY;
+                facingX <= new_facingX;
+                facingY <= new_facingY;
+                vplaneX <= new_vplaneX;
+                vplaneY <= new_vplaneY;
+            end else begin
+                // Handle player motion:
+                if (moveL)
+                    playerX <= playerX - playerMove;
+                else if (moveR)
+                    playerX <= playerX + playerMove;
 
-            if (moveF)
-                playerY <= playerY - playerMove;
-            else if (moveB)
-                playerY <= playerY + playerMove;
+                if (moveF)
+                    playerY <= playerY - playerMove;
+                else if (moveB)
+                    playerY <= playerY + playerMove;
 
-            //SMELL: Ideally *diagonal* motion should be a vector equal to playerMove,
-            // i.e. move by 1/sqrt(2) on both X and Y.
+                //SMELL: Ideally *diagonal* motion should be a vector equal to playerMove,
+                // i.e. move by 1/sqrt(2) on both X and Y.
+            end
         end
     end
     always @(negedge reset) begin

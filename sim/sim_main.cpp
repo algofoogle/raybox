@@ -111,6 +111,18 @@ bool          gSyncLine = false;
 bool          gSyncFrame = false;
 bool          gHighlight = true;
 bool          gGuides = false;
+bool          gOverrideVectors = false;
+
+typedef struct {
+  uint32_t px, py, fx, fy, vx, vy;
+} fixed_vectors_t;
+
+typedef struct {
+  double px, py, fx, fy, vx, vy;
+} float_vectors_t;
+
+float_vectors_t gOvers; // Floating point overrides.
+
 
 enum {
   LOCK_F = 0,
@@ -152,7 +164,53 @@ void get_text_and_rect(
   rect->h = text_height;
 }
 
+double fixed2double(uint32_t fixed) {
+  int32_t t = fixed;
+  // Sign extension:
+  bool sign = fixed & (1<<((Qm+Qn)-1));
+  if (sign) t |= ((1<<(32-(Qm+Qn)))-1)<<(Qm+Qn);
+  return double(t) / pow(2.0, Qn);
+}
 
+uint32_t double2fixed(double d) {
+  int32_t t = d * pow(2.0, Qn);
+  return t & ((1<<(Qm+Qn))-1);
+}
+
+// Get current internal vectors from the design, so we can take them over
+// without disrupting the current view:
+void load_override_vectors() {
+  // #error "load_override_vectors() is not implemented!"
+  fixed_vectors_t get;
+  get.px = TB->m_core->DESIGN->playerX;
+  get.py = TB->m_core->DESIGN->playerY;
+  get.fx = TB->m_core->DESIGN->facingX;
+  get.fy = TB->m_core->DESIGN->facingY;
+  get.vx = TB->m_core->DESIGN->vplaneX;
+  get.vy = TB->m_core->DESIGN->vplaneY;
+  gOvers.px = fixed2double(get.px);
+  gOvers.py = fixed2double(get.py);
+  gOvers.fx = fixed2double(get.fx);
+  gOvers.fy = fixed2double(get.fy);
+  gOvers.vx = fixed2double(get.vx);
+  gOvers.vy = fixed2double(get.vy);
+  printf(
+    "Loaded vectors:\n"
+    "  px=%16.10lf\n"
+    "  py=%16.10lf\n"
+    "  fx=%16.10lf\n"
+    "  fy=%16.10lf\n"
+    "  vx=%16.10lf\n"
+    "  vy=%16.10lf\n"
+    ,
+    gOvers.px,
+    gOvers.py,
+    gOvers.fx,
+    gOvers.fy,
+    gOvers.vx,
+    gOvers.vy
+  );
+}
 
 
 void process_sdl_events() {
@@ -232,6 +290,12 @@ void process_sdl_events() {
         case SDLK_v:
           TB->log_vsync = !TB->log_vsync;
           printf("Logging VSYNC %s\n", TB->log_vsync ? "enabled" : "disabled");
+          break;
+        case SDLK_o:
+          if ( (gOverrideVectors = !gOverrideVectors) ) {
+            load_override_vectors();
+          }
+          printf("Vectors override turned %s\n", gOverrideVectors ? "ON" : "off");
           break;
         case SDLK_KP_PLUS:
           printf("gRefreshLimit increased to %d\n", gRefreshLimit+=1000);
@@ -664,21 +728,33 @@ int main(int argc, char **argv) {
 
     SDL_UpdateTexture( texture, NULL, framebuffer, WINDOW_WIDTH * 4 );
     SDL_RenderCopy( renderer, texture, NULL, NULL );
-#ifdef INSPECT_INTERNAL
     if (font) {
       SDL_Rect rect;
       SDL_Texture *text_texture = NULL;
-      string summary =
-        // " h="         + to_string(TB->m_core->DESIGN->h) +
-        // " v="         + to_string(TB->m_core->DESIGN->v) +
-        // " v_shift="   + to_string(v_shift) +
-        // " h_adjust="  + to_string(h_adjust) +
-        // Player position:
-         "pX=" + to_string(double(TB->m_core->DESIGN->playerX)*pow(2.0,-Qn)) +
-        " pY=" + to_string(double(TB->m_core->DESIGN->playerY)*pow(2.0,-Qn)) +
-        "";
+      string s = "[";
+      s += TB->paused           ? "P" : ".";
+      s += gGuides              ? "G" : ".";
+      s += gHighlight           ? "H" : ".";
+      s += TB->log_vsync        ? "V" : ".";
+      s += gOverrideVectors     ? "O" : ".";
+      s += TB->examine_mode     ? "X" : ".";
+      s += gLockInputs[LOCK_MAP]? "m" : ".";
+      s += gLockInputs[LOCK_L]  ? "<" : ".";
+      s += gLockInputs[LOCK_F]  ? "^" : ".";
+      s += gLockInputs[LOCK_B]  ? "v" : ".";
+      s += gLockInputs[LOCK_R]  ? ">" : ".";
+#ifdef INSPECT_INTERNAL
+      s += "] ";
+      // s += " h="         + to_string(TB->m_core->DESIGN->h);
+      // s += " v="         + to_string(TB->m_core->DESIGN->v);
+      // s += " v_shift="   + to_string(v_shift);
+      // s += " h_adjust="  + to_string(h_adjust);
+      // Player position:
+      s += " pX=" + to_string(double(TB->m_core->DESIGN->playerX)*pow(2.0,-Qn));
+      s += " pY=" + to_string(double(TB->m_core->DESIGN->playerY)*pow(2.0,-Qn));
+#endif
 
-      get_text_and_rect(renderer, 10, VFULL+10, summary.c_str(), font, &text_texture, &rect);
+      get_text_and_rect(renderer, 10, VFULL+10, s.c_str(), font, &text_texture, &rect);
       if (text_texture) {
         SDL_RenderCopy(renderer, text_texture, NULL, &rect);
         SDL_DestroyTexture(text_texture);
@@ -687,7 +763,6 @@ int main(int argc, char **argv) {
         printf("Cannot create text_texture\n");
       }
     }
-#endif
     SDL_RenderPresent(renderer);
   }
 
