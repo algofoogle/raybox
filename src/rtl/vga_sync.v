@@ -65,7 +65,7 @@ module vga_sync #(
 
         if (vmax) begin
           // End of frame; animation can happen here...
-          frame <= frame + 1;
+          frame <= frame + 1'b1;
         end // if (vmax)
       end //if (hmax)
     end // else (i.e. not in reset)

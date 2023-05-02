@@ -50,9 +50,9 @@ module raybox_de0nano(
   wire alt = frame_num[0];
   wire dither_hi = (px[0]^py[0])^alt;
   wire dither_lo = (px[0]^alt)&(py[0]^alt);
-  assign gpio1[0] = (r==2'b11) ? 1 : (r==2'b10) ? dither_hi : (r==2'b01) ? dither_lo : 0;
-  assign gpio1[1] = (g==2'b11) ? 1 : (g==2'b10) ? dither_hi : (g==2'b01) ? dither_lo : 0;
-  assign gpio1[3] = (b==2'b11) ? 1 : (b==2'b10) ? dither_hi : (b==2'b01) ? dither_lo : 0;
+  assign gpio1[0] = (r==2'b11) ? 1'b1 : (r==2'b10) ? dither_hi : (r==2'b01) ? dither_lo : 1'b0;
+  assign gpio1[1] = (g==2'b11) ? 1'b1 : (g==2'b10) ? dither_hi : (g==2'b01) ? dither_lo : 1'b0;
+  assign gpio1[3] = (b==2'b11) ? 1'b1 : (b==2'b10) ? dither_hi : (b==2'b01) ? dither_lo : 1'b0;
     
   assign gpio1[5] = hsync;
   assign gpio1[7] = vsync;

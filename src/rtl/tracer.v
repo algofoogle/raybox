@@ -107,7 +107,7 @@ module tracer(
     //NOTE: a playerfrac could be 0, in which case the partial must be 1.0 if the rayDir is increasing,
     // or 0 otherwise. playerfrac cannot be 1.0, however, since by definition it is the fractional part
     // of the player position.
-    wire `F partialX    = rxi ? `intF(1)-`fF(playerXfrac) : `fF(playerXfrac);
+    wire `F partialX    = rxi ? `intF(1)-`fF(playerXfrac) : `fF(playerXfrac); //SMELL: Why does Quartus think these are 32 bits being assigned?
     wire `F partialY    = ryi ? `intF(1)-`fF(playerYfrac) : `fF(playerYfrac);
     //NOTE: We're using full `F fixed-point numbers here so we can include the possibility of an integer
     // part because of the 1.0 case, mentioned above. However, we really only need 1 extra bit to support
@@ -146,7 +146,7 @@ module tracer(
     // (i.e. simple bit extraction instead of a multiplier), and happens to
     // also make the aspect ratio closer to square for each map cell:
     wire [7:0] wallHeight =
-        (heightScale >= `intF(1)) ? 255 : // Cap height at 255 if heightScale >= 1.0
+        (heightScale >= `intF(1)) ? 8'd255 : // Cap height at 255 if heightScale >= 1.0
         heightScale[-1:-8];  // Else we just need the upper 8 bits of the fractional part.
     //SMELL: Yes, this is hard-coded, but it works given we are assuming a max height of 255
     // (so, a full 8-bit range), and hence the upper 8 bits of precision would effectively
@@ -160,9 +160,9 @@ module tracer(
     // Determine the final height value we'll write:
     assign height =
         // Write 0 if we're in the "dead" region. //SMELL: We don't want this in future.
-        (state == LCLEAR || state == RCLEAR) ? 0 :
+        (state == LCLEAR || state == RCLEAR) ? 8'd0 :
         // Values above 240 are CURRENTLY too high, so clamp:
-        (wallHeight > 240) ? 240 :
+        (wallHeight > 8'd240) ? 8'd240 :
         wallHeight;
     // Output current column counter value:
     assign column = col_counter;
@@ -211,7 +211,7 @@ module tracer(
             case (state)
                 LCLEAR: begin
                     store <= 1;
-                    col_counter <= col_counter+1;
+                    col_counter <= col_counter + 1'b1;
                     if (col_counter == 63) begin
                         state <= INIT;
                     end
@@ -241,11 +241,11 @@ module tracer(
                     //SMELL: Can we explicitly set different states to match which trace/step we're doing?
                     // Might be easier to read than this muck.
                     if (trackXdist < trackYdist) begin
-                        mapX <= rxi ? mapX+1 : mapX-1;
+                        mapX <= rxi ? mapX+1'b1 : mapX-1'b1;
                         trackXdist <= trackXdist + stepXdist;
                         side <= 0;
                     end else begin
-                        mapY <= ryi ? mapY+1 : mapY-1;
+                        mapY <= ryi ? mapY+1'b1 : mapY-1'b1;
                         trackYdist <= trackYdist + stepYdist;
                         side <= 1;
                     end
@@ -291,7 +291,7 @@ module tracer(
                         state <= DONE;
                     end else begin
                         // Start the next column.
-                        col_counter <= col_counter + 1;
+                        col_counter <= col_counter + 1'b1;
                         rayDirX <= rayDirX + rayIncX;
                         rayDirY <= rayDirY + rayIncY;
                         state <= INIT;
@@ -304,7 +304,7 @@ module tracer(
                 end
                 RCLEAR: begin
                     store <= 1;
-                    col_counter <= col_counter+1;
+                    col_counter <= col_counter + 1'b1;
                     if (col_counter == 639) begin
                         state <= STOP;
                         store <= 0;

@@ -43,7 +43,7 @@ module map_rom #(
                 (row[1] ^ col[2]) ^ (row[0] & col[1])
             ) & row[2] & col[1]) | (~row[0]&~col[0]))
             & (row[2]^~col[2]))
-        ) ? 2'b11 : 0;
+        ) ? 2'b11 : 2'b00;
 `else
     reg [7:0]   dummy_memory [0:ROWS-1][0:COLS-1];
     initial $readmemh("assets/map_16x16.hex", dummy_memory);

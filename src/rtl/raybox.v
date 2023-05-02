@@ -144,9 +144,9 @@ module raybox(
 
     // RGB output gating:
     wire [1:0]  r, g, b; // Raw R, G, B values to be gated by 'visible'.
-    assign red  = visible ? r : 0;
-    assign green= visible ? g : 0;
-    assign blue = visible ? b : 0;
+    assign red  = visible ? r : 2'b00;
+    assign green= visible ? g : 2'b00;
+    assign blue = visible ? b : 2'b00;
 
     // This generates base VGA timing:
     vga_sync sync(

@@ -33,7 +33,7 @@ module reciprocal #(
     localparam [M-1:-N] n10012 = 1.0012*(2.0**N)+ROUNDING_FIX; //'h1004E;      // 1.0012 in QM.N
 /* verilator lint_on REALCVT */
 
-    localparam [M-1:-N] nSat = (1<<(M+N-1))-1; //'h7FFF_FFFF;  // Max positive integer (i.e. saturation).  /* FIXME re M,N.*/
+    localparam [M-1:-N] nSat = (1'b1<<(M+N-1))-1'b1; //'h7FFF_FFFF;  // Max positive integer (i.e. saturation).  /* FIXME re M,N.*/
 
     localparam S = M-1; // Sign bit (top-most bit index too).
     // localparam [5:0] M = 16;
