@@ -35,10 +35,13 @@ using namespace std;
 #define NEW_GAME_SIGNAL
 #define PAUSE_SIGNAL
 
+//SMELL: These must be set to the same numbers in fixed_point_params.v:
+#define Qm  12
+#define Qn  12
 
 
 // #define USE_POWER_PINS //NOTE: This is automatically set in the Makefile, now.
-// #define INSPECT_INTERNAL //NOTE: This is automatically set in the Makefile, now.
+#define INSPECT_INTERNAL //NOTE: This is automatically set in the Makefile, now.
 #ifdef INSPECT_INTERNAL
   #include "Vraybox_raybox.h" // Needed for accessing "verilator public" stuff.
 #endif
@@ -107,6 +110,18 @@ unsigned long gPrevTickCount;
 bool          gSyncLine = false;
 bool          gSyncFrame = false;
 bool          gHighlight = true;
+bool          gGuides = false;
+
+enum {
+  LOCK_F = 0,
+  LOCK_B,
+  LOCK_L,
+  LOCK_R,
+  LOCK_MAP,
+  LOCK__MAX
+};
+
+bool gLockInputs[LOCK__MAX] = {0};
 
 
 // From: https://stackoverflow.com/a/38169008
@@ -138,17 +153,6 @@ void get_text_and_rect(
 }
 
 
-enum {
-  LOCK_F = 0,
-  LOCK_B,
-  LOCK_L,
-  LOCK_R,
-  LOCK_MAP,
-  LOCK__MAX
-};
-
-
-bool gLockInputs[LOCK__MAX] = {0};
 
 
 void process_sdl_events() {
@@ -168,6 +172,10 @@ void process_sdl_events() {
           break;
         case SDLK_SPACE:
           TB->pause(!TB->paused);
+          break;
+        case SDLK_g:
+          gGuides = !gGuides;
+          printf("Guides turned %s\n", gGuides ? "ON" : "off");
           break;
         case SDLK_h:
           gHighlight = !gHighlight;
@@ -221,11 +229,6 @@ void process_sdl_events() {
           gSyncFrame = true;
           printf("Refreshing every 3 frames\n");
           break;
-        case SDLK_INSERT: gLockInputs[LOCK_MAP] ^= 1; break;
-        case SDLK_UP:     gLockInputs[LOCK_F  ] ^= 1; break;
-        case SDLK_DOWN:   gLockInputs[LOCK_B  ] ^= 1; break;
-        case SDLK_LEFT:   gLockInputs[LOCK_L  ] ^= 1; break;
-        case SDLK_RIGHT:  gLockInputs[LOCK_R  ] ^= 1; break;
         case SDLK_v:
           TB->log_vsync = !TB->log_vsync;
           printf("Logging VSYNC %s\n", TB->log_vsync ? "enabled" : "disabled");
@@ -254,23 +257,47 @@ void process_sdl_events() {
         case SDLK_f:
           printf("Stepping by 1 frame is not yet implemented!\n");
           break;
+        
+        // Keys affecting signals...
+        // Toggle map input:
+        case SDLK_INSERT: gLockInputs[LOCK_MAP] ^= 1; break;
+        // Toggle direction inputs (and turn off any that are opposing):
+        case SDLK_UP:     if (KMOD_SHIFT & e.key.keysym.mod) TB->m_core->moveF=1; else if( (gLockInputs[LOCK_F] ^= 1) ) gLockInputs[LOCK_B] = false; break;
+        case SDLK_DOWN:   if (KMOD_SHIFT & e.key.keysym.mod) TB->m_core->moveB=1; else if( (gLockInputs[LOCK_B] ^= 1) ) gLockInputs[LOCK_F] = false; break;
+        case SDLK_LEFT:   if (KMOD_SHIFT & e.key.keysym.mod) TB->m_core->moveL=1; else if( (gLockInputs[LOCK_L] ^= 1) ) gLockInputs[LOCK_R] = false; break;
+        case SDLK_RIGHT:  if (KMOD_SHIFT & e.key.keysym.mod) TB->m_core->moveR=1; else if( (gLockInputs[LOCK_R] ^= 1) ) gLockInputs[LOCK_L] = false; break;
+        // NOTE: If SHIFT is held, send momentary (1-frame) signal inputs instead of locks.
+        //SMELL: This won't work if we're calling handle_control_inputs more often than once per frame...?
+
+        // Turn off all input locks:
+        case SDLK_END:    memset(&gLockInputs, 0, sizeof(gLockInputs)); break;
       }
     }
   }
 }
 
 
-
-void handle_control_inputs() {
-  // Read the momentary state of all keyboard keys:
-  auto keystate = SDL_GetKeyboardState(NULL);
-
-  TB->m_core->reset             = keystate[SDL_SCANCODE_R];
-  TB->m_core->show_map          = keystate[SDL_SCANCODE_TAB ] | gLockInputs[LOCK_MAP];
-  TB->m_core->moveF             = keystate[SDL_SCANCODE_W   ] | gLockInputs[LOCK_F];
-  TB->m_core->moveL             = keystate[SDL_SCANCODE_A   ] | gLockInputs[LOCK_L];
-  TB->m_core->moveB             = keystate[SDL_SCANCODE_S   ] | gLockInputs[LOCK_B];
-  TB->m_core->moveR             = keystate[SDL_SCANCODE_D   ] | gLockInputs[LOCK_R];
+//NOTE: handle_control_inputs is called twice; once with `true` before process_sdl_events, then once after with `false`.
+void handle_control_inputs(bool prepare) {
+  if (prepare) {
+    // PREPARE mode: Clear all inputs, so process_sdl_events has a chance to preset MOMENTARY inputs:
+    TB->m_core->reset     = 0;
+    TB->m_core->show_map  = 0;
+    TB->m_core->moveF     = 0;
+    TB->m_core->moveL     = 0;
+    TB->m_core->moveB     = 0;
+    TB->m_core->moveR     = 0;
+  }
+  else {
+    // ACTIVE mode: Read the momentary state of all keyboard keys, and add them via `|=` to whatever is already asserted:
+    auto keystate = SDL_GetKeyboardState(NULL);
+    TB->m_core->reset     |= keystate[SDL_SCANCODE_R];
+    TB->m_core->show_map  |= keystate[SDL_SCANCODE_TAB ] | gLockInputs[LOCK_MAP];
+    TB->m_core->moveF     |= keystate[SDL_SCANCODE_W   ] | gLockInputs[LOCK_F];
+    TB->m_core->moveL     |= keystate[SDL_SCANCODE_A   ] | gLockInputs[LOCK_L];
+    TB->m_core->moveB     |= keystate[SDL_SCANCODE_S   ] | gLockInputs[LOCK_B];
+    TB->m_core->moveR     |= keystate[SDL_SCANCODE_D   ] | gLockInputs[LOCK_R];
+  }
 }
 
 
@@ -321,6 +348,7 @@ void clear_freshness(uint8_t *fb) {
 }
 
 void overlay_display_area_frame(uint8_t *fb, int h_shift = 0, int v_shift = 0) {
+  // if (!gGuides) return;
   // Vertical range: Horizontal lines (top and bottom):
   if (v_shift > 0) {
     for (int x = 0; x < WINDOW_WIDTH; ++x) {
@@ -336,7 +364,7 @@ void overlay_display_area_frame(uint8_t *fb, int h_shift = 0, int v_shift = 0) {
       fb[(x+(VDA+v_shift)*WINDOW_WIDTH)*4 + 2] |= 0b0100'0000;
     }
   }
-  // Horizontal range: Vertical lines (left and right):
+  // Horizontal range: Vertical lines (left and right sides):
   if (h_shift > 0) {
     for (int y = 0; y < WINDOW_HEIGHT; ++y) {
       fb[(h_shift-1+y*WINDOW_WIDTH)*4 + 0] |= 0b0100'0000;
@@ -349,6 +377,15 @@ void overlay_display_area_frame(uint8_t *fb, int h_shift = 0, int v_shift = 0) {
       fb[(HDA+h_shift+y*WINDOW_WIDTH)*4 + 0] |= 0b0100'0000;
       fb[(HDA+h_shift+y*WINDOW_WIDTH)*4 + 1] |= 0b0100'0000;
       fb[(HDA+h_shift+y*WINDOW_WIDTH)*4 + 2] |= 0b0100'0000;
+    }
+  }
+  // Guides:
+  if (gGuides) {
+    // Mid-screen vertical line:
+    for (int y = 0; y < WINDOW_HEIGHT; ++y) {
+        fb[(HDA/2+h_shift+y*WINDOW_WIDTH)*4 + 0] |= 0b0110'0000;
+        fb[(HDA/2+h_shift+y*WINDOW_WIDTH)*4 + 1] |= 0b0110'0000;
+        fb[(HDA/2+h_shift+y*WINDOW_WIDTH)*4 + 2] |= 0b0110'0000;
     }
   }
 }
@@ -458,17 +495,17 @@ int main(int argc, char **argv) {
   TB->print_big_num(CLOCK_HZ);
   printf(" Hz\n");
 
-#ifdef INSPECT_INTERNAL
-  printf(
-    "\n"
-    "Initial state of design:\n"
-    "  h        : %d\n"
-    "  v        : %d\n"
-    "\n",
-    TB->m_core->DESIGN->h,
-    TB->m_core->DESIGN->v,
-  );
-#endif
+// #ifdef INSPECT_INTERNAL
+//   printf(
+//     "\n"
+//     "Initial state of design:\n"
+//     "  h        : %d\n"
+//     "  v        : %d\n"
+//     "\n",
+//     TB->m_core->DESIGN->h,
+//     TB->m_core->DESIGN->v,
+//   );
+// #endif
 
 
   // printf("Starting simulation in ");
@@ -498,12 +535,15 @@ int main(int argc, char **argv) {
     if (TB->done()) gQuit = true;
     if (TB->paused) SDL_WaitEvent(NULL); // If we're paused, an event is needed before we could resume.
 
+    handle_control_inputs(true); // true = PREPARE mode; set default signal inputs, so process_sdl_events can OPTIONALLY override.
+    //SMELL: Should we do handle_control_inputs(true) only when we detect the start of a new frame,
+    // so as to preserve/capture any keys that were pressed across *partial* refreshes?
     process_sdl_events();
     if (gQuit) break;
     if (TB->paused) continue;
 
     int old_reset = TB->m_core->reset;
-    handle_control_inputs();
+    handle_control_inputs(false); // false = ACTIVE mode; add in actual HID=>signal input changes.
     if (old_reset != TB->m_core->reset) {
       // Reset state changed, so we probably need to resync:
       h_adjust = HBP*2;
@@ -629,10 +669,13 @@ int main(int argc, char **argv) {
       SDL_Rect rect;
       SDL_Texture *text_texture = NULL;
       string summary =
-        " h="         + to_string(TB->m_core->DESIGN->h) +
-        " v="         + to_string(TB->m_core->DESIGN->v) +
-        " v_shift="   + to_string(v_shift) +
-        " h_adjust="  + to_string(h_adjust) +
+        // " h="         + to_string(TB->m_core->DESIGN->h) +
+        // " v="         + to_string(TB->m_core->DESIGN->v) +
+        // " v_shift="   + to_string(v_shift) +
+        // " h_adjust="  + to_string(h_adjust) +
+        // Player position:
+         "pX=" + to_string(double(TB->m_core->DESIGN->playerX)*pow(2.0,-Qn)) +
+        " pY=" + to_string(double(TB->m_core->DESIGN->playerY)*pow(2.0,-Qn)) +
         "";
 
       get_text_and_rect(renderer, 10, VFULL+10, summary.c_str(), font, &text_texture, &rect);

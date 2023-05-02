@@ -86,6 +86,7 @@ make clean sim_random   # ...unpredictable random values each time.
 | Key           | Function |
 |---------------|----------|
 | Space         | Pause simulator |
+| G             | Toggle extra guides overlay |
 | H             | Toggle refresh highlight |
 | Q or Escape   | Quit     |
 | V             | Toggle VSYNC logging |
@@ -95,6 +96,7 @@ make clean sim_random   # ...unpredictable random values each time.
 | + (Keypad)    | Increase refresh period by 1000 cycles |
 | - (Keypad)    | Decrease refresh period by 1000 cycles |
 | 1             | Refresh after every pixel (VERY slow) |
+| 8             | Refresh every 8 pixels (quite slow, easier to see and review) |
 | 2             | Refresh after every line |
 | 3             | Refresh after every 10 lines |
 | 4             | Refresh after every 80 lines |
@@ -113,13 +115,16 @@ make clean sim_random   # ...unpredictable random values each time.
 |---------------|----------|
 | R             | Reset    |
 | Tab           | Render map overlay |
-| F1..F8        | Assert debug signal 1 to 8 |
+| W,A,S,D       | Standard FPS-style directional/strafe inputs |
+| Arrow keys    | Toggle lock (i.e. hold) directional inputs |
+| Insert        | Toggle lock map overlay |
+| End           | Turn off all locks |
+| SHIFT + Arrows| Send a momentary directional input (i.e. single-step) |
 
-
-**Debug signals** (through function keys F1 to F8) depend on the project being simulated.
-At this time, they control the individual bits (F1 is MSB, F8 is LSB) of the `debug_set_height` input.
-This input gets sent to the internal `tracer` module, and it uses this to write the desired
-debug height value to the `trace_buffer`. Note that this happens during VBLANK only.
+**NOTE:** "SHIFT + Arrows" will really only work as you expect in full-frame fresh mode
+(i.e. mode 5) because it asserts the signal only once within the current refresh range,
+and so this is likely to miss one of the periods when the design would actually check
+for the signal (i.e. right at the start of the frame).
 
 
 # Contents

@@ -104,12 +104,15 @@ module tracer(
     wire `f playerYfrac = `Ff(playerY);
 
     // Work out size of the initial partial ray step, and whether it's towards a lower or higher cell:
-    //SMELL: Below, if we only focus on the fractional bits (i.e. lower 16 or whatever), then
-    // instead of intF(1)-playerXfrac we could do (1 + ~playerXfrac) or simply (-playerXfrac).
-    // I think partialX and partialY will always be positive anyway...?
-    wire `f partialX    = rxi ? -playerXfrac : playerXfrac; //`intF(1)-playerXfrac : playerXfrac;
-    wire `f partialY    = ryi ? -playerYfrac : playerYfrac; //`intF(1)-playerYfrac : playerYfrac;
-
+    //NOTE: a playerfrac could be 0, in which case the partial must be 1.0 if the rayDir is increasing,
+    // or 0 otherwise. playerfrac cannot be 1.0, however, since by definition it is the fractional part
+    // of the player position.
+    wire `F partialX    = rxi ? `intF(1)-`fF(playerXfrac) : `fF(playerXfrac);
+    wire `F partialY    = ryi ? `intF(1)-`fF(playerYfrac) : `fF(playerYfrac);
+    //NOTE: We're using full `F fixed-point numbers here so we can include the possibility of an integer
+    // part because of the 1.0 case, mentioned above. However, we really only need 1 extra bit to support
+    // this, if that makes any difference.
+    
     // What distance (i.e. what extension of our ray's vector) do we go when travelling by 1 cell in the...
     wire `F stepXdist;  // ...map X direction...
     wire `F stepYdist;  // ...may Y direction...

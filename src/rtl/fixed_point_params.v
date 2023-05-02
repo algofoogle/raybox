@@ -1,6 +1,10 @@
 `ifndef _FIXED_POINT_PARAMS__H_
 `define _FIXED_POINT_PARAMS__H_
 
+// A note on Qm:
+// It seems the smaller the player step size, the bigger Qm needs to be. Non-power-of-2 steps could make this worse.
+// For instance, with Q12.12, it seems the smallest reliable step quantum is 8, i.e. 8*(2^-12) => 0.001953125.
+// This might be made better if we properly check for reciprocal saturation.
 `define Qm          12                  // Signed.
 `define Qn          12                  // I don't think I can go lower than 10; things get glitchy otherwise.
 `define QMI         (`Qm-1)             // Just for convenience; M-1.

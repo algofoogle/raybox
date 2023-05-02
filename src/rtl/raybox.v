@@ -43,40 +43,50 @@ module raybox(
 );
 
     //localparam DEBUG_X          = 300;  // Column to highlight.
-    localparam SCREEN_HEIGHT    = 480;
-    localparam HALF_HEIGHT      = SCREEN_HEIGHT>>1;
-    localparam MAP_SCALE        = 4;                        // Power of 2 scaling for map overlay size.
-    localparam MAP_OVERLAY_SIZE = (1<<(MAP_SCALE))*16+1;    // Total size of map overlay. //NOTE: *16 is map width/height in cells.
+    localparam SCREEN_HEIGHT        = 480;
+    localparam HALF_HEIGHT          = SCREEN_HEIGHT>>1;
+    localparam MAP_SCALE            = 4;                        // Power of 2 scaling for map overlay size.
+    localparam MAP_OVERLAY_SIZE     = (1<<(MAP_SCALE))*16+1;    // Total size of map overlay. //NOTE: *16 is map width/height in cells.
 
 /* verilator lint_off REALCVT */
-    localparam `F facingXstart     = `realF( 0.0); // ...
-    localparam `F facingYstart     = `realF(-1.0); // ...Player is facing (0,-1); upwards on map.
-    localparam `F vplaneXstart     = `realF( 0.5); // Viewplane dir is (0.5,0); right...
-    localparam `F vplaneYstart     = `realF( 0.0); // ...makes FOV 45deg. Too small, but makes maths easy for now.
-
-    localparam playerXstartoffset = 0.00;    // Should normally be 0.5, but for debugging might need to be other values.
-    localparam playerYstartoffset = 0.50;
+    localparam `F facingXstart      = `realF( 0.0); // ...
+    localparam `F facingYstart      = `realF(-1.0); // ...Player is facing (0,-1); upwards on map.
+    localparam `F vplaneXstart      = `realF( 0.5); // Viewplane dir is (0.5,0); right...
+    localparam `F vplaneYstart      = `realF( 0.0); // ...makes FOV 45deg. Too small, but makes maths easy for now.
 
 `ifdef DUMMY_MAP
-    localparam `I playerXstartcell = 2;
-    localparam `I playerYstartcell = 13;
+    localparam `I playerXstartcell  = 2;
+    localparam `I playerYstartcell  = 13;
 `else
-    localparam `I playerXstartcell = 8;
-    localparam `I playerYstartcell = 14;
+    localparam `I playerXstartcell  = 8;
+    localparam `I playerYstartcell  = 14;
 `endif
     // Player's full start position is in the middle of a cell:
-    localparam `F playerXstartpos  = `realF(playerXstartcell+playerXstartoffset);
-    localparam `F playerYstartpos  = `realF(playerYstartcell+playerYstartoffset);
+    localparam playerXstartoffset   = 0.00;    // Should normally be 0.5, but for debugging might need to be other values.
+    localparam playerYstartoffset   = 0.50;
+    localparam `F playerXstartpos   = `realF(playerXstartcell+playerXstartoffset);
+    localparam `F playerYstartpos   = `realF(playerYstartcell+playerYstartoffset);
 
-    localparam `F playerMove       = `realF(0.0078125); // This is 1/128 ('b0.0000001000)
+    localparam `F playerCrawl       = `realF(0.00781250);   //0b0.0000_0010_0000 or  4*8 or ~1.5cm => ~0.94m/s =>  3.3km/hr
+    localparam `F playerWalk        = `realF(0.01953125);   //0b0.0000_0101_0000 or 10*8 or ~4cm   => ~2.34m/s =>  8.4km/hr
+    localparam `F playerRun         = `realF(0.03515625);   //0b0.0000_1001_0000 or 18*8 or ~7cm   => ~4.22m/s => 15.2km/hr
+
+    localparam `F playerMove        = playerWalk;
+    // Note that for Q12.12, it seems playerMove needs to be a multiple of 8 (i.e. 'b0.000000001000) in order to be reliable.
+    // This should be OK: It's a very small movement, equivalent to maybe 5mm in the real world?
+    // My preference for player speeds per frame at 60fps:
+    // -  32 (4*8) for slow walking speed
+    // -  80 (10*8) regular walking speed
+    // - 144 (18*8) for running.
+
 /* verilator lint_on REALCVT */
 
-    reg `F playerX;
-    reg `F playerY;
-    reg `F facingX;     // Heading is the vector of the direction the player is facing.
-    reg `F facingY;
-    reg `F vplaneX;     // Viewplane vector (typically 'facing' rotated clockwise by 90deg and then scaled).
-    reg `F vplaneY;     // (which could also be expressed as vx=-fy, vy=fx, then scaled).
+    reg `F playerX /* verilator public */;
+    reg `F playerY /* verilator public */;
+    reg `F facingX /* verilator public */;     // Heading is the vector of the direction the player is facing.
+    reg `F facingY /* verilator public */;
+    reg `F vplaneX /* verilator public */;     // Viewplane vector (typically 'facing' rotated clockwise by 90deg and then scaled).
+    reg `F vplaneY /* verilator public */;     // (which could also be expressed as vx=-fy, vy=fx, then scaled).
 
 
     assign speaker = 0; // Speaker is unused for now.
@@ -87,7 +97,11 @@ module raybox(
     wire        visible;    // Are we in the visible region of the screen?
     wire [10:0] frame;      // Frame counter (0..2047); mostly unused.
     // `tick` pulses once, with the clock, at the start of a frame, to signal that animation can happen:
+    
     wire        tick = h==0 && v==0;
+    //SMELL: Should `tick` come from vga_sync?
+    // Should it be an output signal (e.g. for IRQ and diagnostics)?
+    // Should one be generated at the start of VBLANK too?
 
     assign px = h;
     assign py = v;
