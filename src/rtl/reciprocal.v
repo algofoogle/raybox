@@ -8,6 +8,12 @@
 //SMELL: If possible, make this work using parameters in fixed_point_params.v:
 // `include "fixed_point_params.v"
 
+`define STRINGIFY(x) `"x`"  // Debug helper.
+
+// `define LZC_TYPE_A  //SMELL: lzc_a is currently hardcoded to 32-bit.
+`define LZC_TYPE_B
+// `define LZC_TYPE_C
+// `define LZC_TYPE_D
 
 module reciprocal #(
     parameter [6:0] M = 16,         // Integer bits, inc. sign.
@@ -39,7 +45,7 @@ module reciprocal #(
     // localparam [5:0] M = 16;
 
     initial begin
-        $display("reciprocal params re M.N = %0d.%0d:  n1466=%X, n10012=%X, nSat=%X", M, N, n1466, n10012, nSat);
+        $display("reciprocal params for Q%0d.%0d:  n1466=%X, n10012=%X, nSat=%X", M, N, n1466, n10012, nSat);
     end
 
 
@@ -67,9 +73,21 @@ module reciprocal #(
 
     assign unsigned_data = sign ? (~i_data + 1'b1) : i_data;
 
-    lzc#(.WIDTH(M+N)) lzc_inst(.i_data(unsigned_data), .lzc_cnt(lzc_cnt));
+`ifdef LZC_TYPE_A
+    lzc_a #(.WIDTH(M+N)) lzc_inst(.i_data(unsigned_data), .lzc_cnt(lzc_cnt)); // TEST TYPE A
 
-    assign rescale_lzc = $signed(M) - $signed(lzc_cnt);
+`elsif LZC_TYPE_B
+    lzc_b #(.WIDTH(M+N)) lzc_inst(.i_data(unsigned_data), .lzc_cnt(lzc_cnt)); // TEST TYPE B
+
+`elsif LZC_TYPE_C
+    lzc_c #(.WIDTH(M+N)) lzc_inst(.i_data(unsigned_data), .lzc_cnt(lzc_cnt)); // TEST TYPE C
+
+`elsif LZC_TYPE_D
+    lzc_d #(.WIDTH(32)) lzc_inst(.i_data({unsigned_data, {(32-`Qm-`Qn){1'b1}} }), .lzc_cnt(lzc_cnt)); // TEST TYPE D
+    //NOTE: Type D needs WIDTH to be a power of 2; if we use fewer `F bits, then LSBs are padded with 1. This keeps the range normal, in 0..(`Qm+`Qn).
+`endif
+
+    assign rescale_lzc = $signed(M) - $signed(lzc_cnt); //SMELL: rescale_lzc and lzc_cnt are both 7 bits; could there be a sign problem??
 
     // Scale input data to be between .5 and 1 for accurate reciprocal result
     assign scale_data =

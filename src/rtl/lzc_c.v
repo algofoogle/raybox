@@ -1,16 +1,24 @@
-// Leading Zeroes Counter logic, borrowed from:
-// https://github.com/ameetgohil/leading-zeroes-counter/blob/master/rtl/lzc.sv
-// ...then fudged to just be Verilog (instead of SystemVerilog) and work with 32-bit input only.
+/*** lzc_c: Leading Zeroes Counter, type C
 
-`define USE_SIMPLE_LZC	// Don't use the clever SystemVerilog-generator-based LZC.
-`define SMART_LZC_COUNT_WIDTH  7	// If defined, and USE_SIMPLE_LZC is NOT, then explicitly set the smart LZC count output width to this number of bits.
+This is a dumb LZC that uses a giant if-else-if chain to count leading zeroes.
 
+See also: lzc_a, _b, and _d.
 
+This type was found to run fast in Verilator, and it synthesises in Quartus, but I haven't
+yet been able to verify if it works on my DE0-Nano (Cyclone IV) FPGA board.
 
-`ifdef USE_SIMPLE_LZC
+This is probably the worst one I've come up with so far, but so long as you comment out
+the cases that are beyond your needs (and bit depth) it will at least be supported by
+pretty much anything. The problem remains: It works in Verilator, but not on my FPGA.
+That could be a timing issue; not sure yet.
 
-module lzc #(
-    parameter WIDTH=32
+***/
+
+`undef SZ
+`define SZ  24  //SMELL: This should match WIDTH.
+
+module lzc_c #(
+    parameter WIDTH=`SZ
 )(
     input   [WIDTH-1:0] i_data,
     output  [6:0]       lzc_cnt
@@ -18,14 +26,14 @@ module lzc #(
 
     function [6:0] f_lzc(input [WIDTH-1:0] data);
         if (WIDTH>64 || WIDTH<1) begin
-            $error("lzc module only designed to support 1..64 inputs but you want: ", WIDTH);
+            $error("lzc module only designed to support 1..64 inputs but you want: %1d", WIDTH);
         end
-				
+        if (WIDTH!=`SZ) begin
+            $error("lzc_b module is currently hardcoded to expect a WIDTH of %1d, but you want: %1d", `SZ, WIDTH);
+        end
+
         //SMELL: YUCK! What a horrible way to do this.
-        // If possible, try to use a generator or something instead,
-        // and consider treating this like a tree so it doesn't become
-        // just one huge logic chain:
-        // https://electronics.stackexchange.com/questions/196914/verilog-synthesize-high-speed-leading-zero-count
+
                 if (            data[WIDTH- 1]) f_lzc =  0; // No zeroes.
         else    if (WIDTH>1  && data[WIDTH- 2]) f_lzc =  1;
         else    if (WIDTH>2  && data[WIDTH- 3]) f_lzc =  2;
@@ -49,7 +57,7 @@ module lzc #(
         else    if (WIDTH>20 && data[WIDTH-21]) f_lzc = 20;
         else    if (WIDTH>21 && data[WIDTH-22]) f_lzc = 21;
         else    if (WIDTH>22 && data[WIDTH-23]) f_lzc = 22;
-        else    if (WIDTH>23 && data[WIDTH-24]) f_lzc = 23;
+        else    if (WIDTH>23 && data[WIDTH-24]) f_lzc = 23; //NOTE: Final case (24) is in the bottom `else`.
 //        else    if (WIDTH>24 && data[WIDTH-25]) f_lzc = 24;
 //        else    if (WIDTH>25 && data[WIDTH-26]) f_lzc = 25;
 //        else    if (WIDTH>26 && data[WIDTH-27]) f_lzc = 26;
@@ -100,77 +108,3 @@ module lzc #(
 
 endmodule
 
-
-`else
-
-//SMELL: This doesn't seem to work as intended! Also it's very slow for Verilator.
-
-module lzc#(int WIDTH=8)
-  (input wire[WIDTH-1:0] i_data,
-`ifdef SMART_LZC_COUNT_WIDTH
-   output wire [`SMART_LZC_COUNT_WIDTH-1:0] lzc_cnt
-`else
-   output wire [$clog2(WIDTH):0] lzc_cnt
-`endif
-   );
-
-   wire       allzeroes;
-
-   // f()
-   function bit f(bit[WIDTH-1:0] x, int size);
-      bit                        jval = 0;
-      bit                        ival = 0;
-
-      for(int i = 1; i < size; i+=2) begin
-         jval = 1;
-         for(int j = i+1; j < size; j+=2) begin
-            jval &= ~x[j];
-         end
-         ival |= jval & x[i];
-      end
-
-      return ival;
-
-   endfunction // f()
-
-   // f_input()
-   function bit[WIDTH-1:0] f_input(bit[WIDTH-1:0] x, int stage );
-      bit[WIDTH-1:0] dout = 0;
-      int            stagePow2 = 2**stage;
-      int            j=0;
-      for(int i=0; i<WIDTH; i++) begin
-         dout[j] |= x[i];
-         if(i % stagePow2 == stagePow2 - 1)
-           j++;
-      end
-      return dout;
-   endfunction // f_input()
-
-   genvar i;
-
-   assign allzeroes = ~(|i_data);
-
-`ifdef SMART_LZC_COUNT_WIDTH
-   generate
-      for(i=0; i < `SMART_LZC_COUNT_WIDTH; i++) begin : ASSIGN_COUNT_BITS
-				 if (i < $clog2(WIDTH))
-						assign lzc_cnt[i] = ~allzeroes & ~f(f_input(i_data, i),WIDTH);
-				 else if (i == $clog2(WIDTH))
-						assign lzc_cnt[$clog2(WIDTH)] = allzeroes;
-				 else
-						assign lzc_cnt[i] = 0;
-      end
-   endgenerate
-`else
-   assign lzc_cnt[$clog2(WIDTH)] = allzeroes;
-
-   generate
-      for(i=0; i < $clog2(WIDTH); i++) begin : ASSIGN_COUNT_BITS
-         assign lzc_cnt[i] = ~allzeroes & ~f(f_input(i_data, i),WIDTH);
-      end
-   endgenerate
-`endif
-
-endmodule
-
-`endif

@@ -24,7 +24,10 @@ MAIN_VSOURCES = \
 	src/rtl/trace_buffer.v \
 	src/rtl/map_rom.v \
 	src/rtl/tracer.v \
-	src/rtl/lzc.sv \
+	src/rtl/lzc_a.v \
+	src/rtl/lzc_b.v \
+	src/rtl/lzc_c.v \
+	src/rtl/lzc_d.sv \
 	src/rtl/reciprocal.v
 
 # Top Verilog module representing our design:

@@ -179,7 +179,7 @@ uint32_t double2fixed(double d) {
 
 // Get current internal vectors from the design, so we can take them over
 // without disrupting the current view:
-void load_override_vectors() {
+void get_override_vectors() {
   // #error "load_override_vectors() is not implemented!"
   fixed_vectors_t get;
   get.px = TB->m_core->DESIGN->playerX;
@@ -210,6 +210,55 @@ void load_override_vectors() {
     gOvers.vx,
     gOvers.vy
   );
+}
+
+
+
+void rotate_override_vectors(double a) {
+  double nx, ny;
+  double ca = cos(a);
+  double sa = sin(a);
+  // Rotate direction vector:
+  nx =  gOvers.fx*ca + gOvers.fy*sa;
+  ny = -gOvers.fx*sa + gOvers.fy*ca;
+  gOvers.fx = nx;
+  gOvers.fy = ny;
+  // // Generate viewplane vector:
+  // viewX = -headingY * viewMag;
+  // viewY =  headingX * viewMag;
+  // Rotate viewplane vector:
+  nx =  gOvers.vx*ca + gOvers.vy*sa;
+  ny = -gOvers.vx*sa + gOvers.vy*ca;
+  gOvers.vx = nx;
+  gOvers.vy = ny;
+}
+
+
+void recalc_override_vectors(const Uint8* k) {
+  const double move_quantum = pow(2.0, -9.0); // This borrows from `playerMove` in the design, and in Q12.12 it is the raw value: 8
+  const double playerCrawl  = move_quantum *  4.0;
+  const double playerWalk   = move_quantum * 10.0; // Should be 0.01953125
+  const double playerRun    = move_quantum * 18.0;
+  const double playerMove   = playerWalk;
+  if (k[SDL_SCANCODE_LEFT])   rotate_override_vectors( 0.01);
+  if (k[SDL_SCANCODE_RIGHT])  rotate_override_vectors(-0.01);
+  if (k[SDL_SCANCODE_W]) { gOvers.px += playerMove * gOvers.fx;   gOvers.py += playerMove * gOvers.fy; }
+  if (k[SDL_SCANCODE_S]) { gOvers.px -= playerMove * gOvers.fx;   gOvers.py -= playerMove * gOvers.fy; }
+  if (k[SDL_SCANCODE_A]) { gOvers.px -= playerMove * gOvers.vx;   gOvers.py -= playerMove * gOvers.vy; }
+  if (k[SDL_SCANCODE_D]) { gOvers.px += playerMove * gOvers.vx;   gOvers.py -= playerMove * gOvers.vy; }
+}
+
+
+
+
+void set_override_vectors() {
+  // Convert gOvers to fixed-point values we can write back into the design:
+  TB->m_core->new_playerX = double2fixed(gOvers.px);
+  TB->m_core->new_playerY = double2fixed(gOvers.py);
+  TB->m_core->new_facingX = double2fixed(gOvers.fx);
+  TB->m_core->new_facingY = double2fixed(gOvers.fy);
+  TB->m_core->new_vplaneX = double2fixed(gOvers.vx);
+  TB->m_core->new_vplaneY = double2fixed(gOvers.vy);
 }
 
 
@@ -291,12 +340,6 @@ void process_sdl_events() {
           TB->log_vsync = !TB->log_vsync;
           printf("Logging VSYNC %s\n", TB->log_vsync ? "enabled" : "disabled");
           break;
-        case SDLK_o:
-          if ( (gOverrideVectors = !gOverrideVectors) ) {
-            load_override_vectors();
-          }
-          printf("Vectors override turned %s\n", gOverrideVectors ? "ON" : "off");
-          break;
         case SDLK_KP_PLUS:
           printf("gRefreshLimit increased to %d\n", gRefreshLimit+=1000);
           break;
@@ -321,20 +364,42 @@ void process_sdl_events() {
         case SDLK_f:
           printf("Stepping by 1 frame is not yet implemented!\n");
           break;
-        
-        // Keys affecting signals...
-        // Toggle map input:
-        case SDLK_INSERT: gLockInputs[LOCK_MAP] ^= 1; break;
-        // Toggle direction inputs (and turn off any that are opposing):
-        case SDLK_UP:     if (KMOD_SHIFT & e.key.keysym.mod) TB->m_core->moveF=1; else if( (gLockInputs[LOCK_F] ^= 1) ) gLockInputs[LOCK_B] = false; break;
-        case SDLK_DOWN:   if (KMOD_SHIFT & e.key.keysym.mod) TB->m_core->moveB=1; else if( (gLockInputs[LOCK_B] ^= 1) ) gLockInputs[LOCK_F] = false; break;
-        case SDLK_LEFT:   if (KMOD_SHIFT & e.key.keysym.mod) TB->m_core->moveL=1; else if( (gLockInputs[LOCK_L] ^= 1) ) gLockInputs[LOCK_R] = false; break;
-        case SDLK_RIGHT:  if (KMOD_SHIFT & e.key.keysym.mod) TB->m_core->moveR=1; else if( (gLockInputs[LOCK_R] ^= 1) ) gLockInputs[LOCK_L] = false; break;
-        // NOTE: If SHIFT is held, send momentary (1-frame) signal inputs instead of locks.
-        //SMELL: This won't work if we're calling handle_control_inputs more often than once per frame...?
-
+        case SDLK_o:
+          gOverrideVectors = !gOverrideVectors;
+          if (!gOverrideVectors) {
+            printf("Vectors override turned off\n");
+          }
+          else {
+            printf("Vectors override turned ON\n");
+            get_override_vectors();
+            // Turn off all input locks EXCEPT map:
+            gLockInputs[LOCK_F] = gLockInputs[LOCK_B] = gLockInputs[LOCK_L] = gLockInputs[LOCK_R] = 0;
+          }
+          break;
         // Turn off all input locks:
         case SDLK_END:    memset(&gLockInputs, 0, sizeof(gLockInputs)); break;
+
+        default:
+          // The following keys are treated differently depending on whether we're in gOverrideVectors mode or not:
+          if (gOverrideVectors) {
+            // Override Vectors mode: Let the sim directly set our player position and viewpoint.
+            //NOTE: Nothing to do here: handle_control_inputs will take care of it.
+          }
+          else {
+            // Not in Override Vectors mode; let the design handle motion.
+            switch (e.key.keysym.sym) {
+              // Toggle map input:
+              case SDLK_INSERT: gLockInputs[LOCK_MAP] ^= 1; break;
+              // Toggle direction inputs (and turn off any that are opposing):
+              case SDLK_UP:     if (KMOD_SHIFT & e.key.keysym.mod) TB->m_core->moveF=1; else if( (gLockInputs[LOCK_F] ^= 1) ) gLockInputs[LOCK_B] = false; break;
+              case SDLK_DOWN:   if (KMOD_SHIFT & e.key.keysym.mod) TB->m_core->moveB=1; else if( (gLockInputs[LOCK_B] ^= 1) ) gLockInputs[LOCK_F] = false; break;
+              case SDLK_LEFT:   if (KMOD_SHIFT & e.key.keysym.mod) TB->m_core->moveL=1; else if( (gLockInputs[LOCK_L] ^= 1) ) gLockInputs[LOCK_R] = false; break;
+              case SDLK_RIGHT:  if (KMOD_SHIFT & e.key.keysym.mod) TB->m_core->moveR=1; else if( (gLockInputs[LOCK_R] ^= 1) ) gLockInputs[LOCK_L] = false; break;
+              // NOTE: If SHIFT is held, send momentary (1-frame) signal inputs instead of locks.
+              //SMELL: This won't work if we're calling handle_control_inputs more often than once per frame...?
+            }
+          }
+          break;
       }
     }
   }
@@ -355,6 +420,15 @@ void handle_control_inputs(bool prepare) {
   else {
     // ACTIVE mode: Read the momentary state of all keyboard keys, and add them via `|=` to whatever is already asserted:
     auto keystate = SDL_GetKeyboardState(NULL);
+
+    if (gOverrideVectors) {
+      recalc_override_vectors(keystate);
+      set_override_vectors();
+      TB->m_core->write_new_position = 1;
+    } else {
+      TB->m_core->write_new_position = 0;
+    }
+
     TB->m_core->reset     |= keystate[SDL_SCANCODE_R];
     TB->m_core->show_map  |= keystate[SDL_SCANCODE_TAB ] | gLockInputs[LOCK_MAP];
     TB->m_core->moveF     |= keystate[SDL_SCANCODE_W   ] | gLockInputs[LOCK_F];
@@ -363,6 +437,7 @@ void handle_control_inputs(bool prepare) {
     TB->m_core->moveR     |= keystate[SDL_SCANCODE_D   ] | gLockInputs[LOCK_R];
   }
 }
+
 
 
 void check_performance() {
@@ -451,6 +526,8 @@ void overlay_display_area_frame(uint8_t *fb, int h_shift = 0, int v_shift = 0) {
         fb[(HDA/2+h_shift+y*WINDOW_WIDTH)*4 + 1] |= 0b0110'0000;
         fb[(HDA/2+h_shift+y*WINDOW_WIDTH)*4 + 2] |= 0b0110'0000;
     }
+    // Overlay camera orientation:
+
   }
 }
 
@@ -762,6 +839,23 @@ int main(int argc, char **argv) {
       else {
         printf("Cannot create text_texture\n");
       }
+    }
+    if (gGuides && gOverrideVectors) {
+      SDL_SetRenderDrawColor(renderer, 255,255,255,255);
+      int ox = HDA/2;
+      int oy = VDA/2;
+      int lx = ox+(gOvers.fx-gOvers.vx)*VDA/4;
+      int ly = oy+(gOvers.fy-gOvers.vy)*VDA/4;
+      int rx = ox+(gOvers.fx+gOvers.vx)*VDA/4;
+      int ry = oy+(gOvers.fy+gOvers.vy)*VDA/4;
+      // Draw center directional line:
+      SDL_RenderDrawLine(renderer, ox, oy, ox+gOvers.fx*VDA/4, oy+gOvers.fy*VDA/4);
+      // Draw left camera vector:
+      SDL_RenderDrawLine(renderer, ox, oy, lx, ly);
+      // Draw right camera vector:
+      SDL_RenderDrawLine(renderer, ox, oy, rx, ry);
+      // Draw viewplane:
+      SDL_RenderDrawLine(renderer, lx, ly, rx, ry);
     }
     SDL_RenderPresent(renderer);
   }
