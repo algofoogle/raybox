@@ -11,8 +11,8 @@
 `define STRINGIFY(x) `"x`"  // Debug helper.
 
 //`define LZC_TYPE_A  //SMELL: lzc_a is currently hardcoded to 32-bit.
-//`define LZC_TYPE_B
-`define LZC_TYPE_C
+`define LZC_TYPE_B
+//`define LZC_TYPE_C
 //`define LZC_TYPE_D
 
 module reciprocal #(

@@ -69,8 +69,12 @@ module tracer(
     localparam INIT     = 0;
     localparam STEP     = 1;
     localparam CHECK    = 2;
-    localparam HIT      = 3;
-    localparam STORE    = 4;
+    localparam HIT1     = 3;	// For now, this has a 1 suffix because there are other repeats of this...
+		localparam HIT2			= 10;
+		localparam HIT3			= 11;
+    localparam STORE1   = 4;	
+		localparam STORE2		= 12;
+		localparam STORE3		= 13;	// ...to try working around FPGA timing issues.
     localparam DONE     = 5;
     localparam STOP     = 6;
     localparam LCLEAR   = 7;
@@ -118,7 +122,8 @@ module tracer(
     wire `F stepYdist;  // ...may Y direction...
     // ...which are values generated combinationally by the `reciprocal` instances below.
     //NOTE: If we needed to save space, we could have just one reciprocal,
-    // and use different states to share it:
+    // and use different states to share it... which would probably work OK since we don't need to CONSTANTLY
+		// be getting the reciprocals; just once at ray start, and once at ray end?
     reciprocal #(.M(`Qm),.N(`Qn)) flipX         (.i_data(rayDirX),          .i_abs(1), .o_data(stepXdist),  .o_sat(satX));
     reciprocal #(.M(`Qm),.N(`Qn)) flipY         (.i_data(rayDirY),          .i_abs(1), .o_data(stepYdist),  .o_sat(satY));
     reciprocal #(.M(`Qm),.N(`Qn)) height_scaler (.i_data(visualWallDist),   .i_abs(1), .o_data(heightScale),.o_sat(satHeight));
@@ -271,19 +276,35 @@ module tracer(
                         //     );
                         // end
                         //SMELL: This extra step is in here to help with timing, i.e. setup violations.
-                        state <= HIT;
+                        state <= HIT1;
                     end else begin
                         // No hit yet; keep going.
                         state <= STEP;
                     end
                 end
-                HIT: begin
+                HIT1: begin
                     // Hit a wall.
-                    store <= 1;
+                    //store <= 1;
                     //SMELL: Dummy cycle to complete the write before we update for next ray.
-                    state <= STORE;
+                    state <= HIT2;
                 end
-                STORE: begin
+								HIT2: begin
+                    //SMELL: Dummy cycle to complete the write before we update for next ray.
+										state <= HIT3;
+								end
+								HIT3: begin
+                    //SMELL: Dummy cycle to complete the write before we update for next ray.
+										state <= STORE1;
+								end
+								STORE1: begin
+										store <= 1;
+										state <= STORE2;
+								end
+								STORE2: begin
+                    //SMELL: Dummy cycle to complete the write before we update for next ray.
+										state <= STORE3;
+								end
+                STORE3: begin
                     // Store is finished.
                     store <= 0;
                     if (col_counter == 575) begin
