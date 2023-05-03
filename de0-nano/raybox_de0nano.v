@@ -40,11 +40,6 @@ module raybox_de0nano(
 //  Structural coding
 //=======================================================
 
-//    // Actual hardware is only using MSB of each colour channel:
-//    assign gpio1[0] = r[1];
-//    assign gpio1[1] = g[1];
-//    assign gpio1[3] = b[1];
-
   // Because actual hardware is only using MSB of each colour channel, attenuate that output
   // (i.e. mask it out for some pixels) to create a pattern dither:
   wire alt = frame_num[0];
@@ -66,11 +61,10 @@ module raybox_de0nano(
 
   //SMELL: This is a bad way to do clock dividing.
   // ...i.e. if we can't make it a global clock, then instead use it as a clock enable.
-    // Otherwise, can we use the built-in FPGA clock divider?
+  // Otherwise, can we use the built-in FPGA clock divider?
   reg clock_25;
   always @(posedge CLOCK_50) clock_25 <= ~clock_25;
-  
-  
+	
   raybox raybox(
     .clk      (clock_25),
     .reset    (reset),
@@ -79,6 +73,14 @@ module raybox_de0nano(
     .moveR    (moveR),
     .moveF    (moveF),
     .moveB    (moveB),
+		
+		.write_new_position(0),
+//		.new_playerX(0),
+//		.new_playerY(0),
+//		.new_facingX(0),
+//		.new_facingY(0),
+//		.new_vplaneX(0),
+//		.new_vplaneY(0),
     
     .hsync    (hsync),
     .vsync    (vsync),
