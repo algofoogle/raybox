@@ -17,7 +17,8 @@
 `default_nettype none
 `timescale 1ns / 1ps
 
-`define DUMMY_MAP   // If defined, map is made by combo logic instead of ROM.
+`define DUMMY_MAP       // If defined, map is made by combo logic instead of ROM.
+`define ENABLE_DEBUG    // If defined, extra logic exists that reacts to the `show_debug` signal.
 
 `include "fixed_point_params.v"
 
@@ -25,6 +26,7 @@ module raybox(
     input           clk,
     input           reset,
     input           show_map,           // Button to control whether we show the map overlay.
+    input           show_debug,
     
     input           moveL,
     input           moveR,
@@ -51,6 +53,8 @@ module raybox(
 );
 
     //localparam DEBUG_X          = 300;  // Column to highlight.
+    localparam DEBUG_SCALE          = 3;                        // Power of 2 scaling for debug overlay.
+
     localparam SCREEN_HEIGHT        = 480;
     localparam HALF_HEIGHT          = SCREEN_HEIGHT>>1;
     localparam MAP_SCALE            = 4;                        // Power of 2 scaling for map overlay size.
@@ -263,7 +267,27 @@ module raybox(
                                     && (playerX[-1:-MAP_SCALE]==h[MAP_SCALE-1:0])
                                     && (playerY[-1:-MAP_SCALE]==v[MAP_SCALE-1:0]);
 
+`ifdef ENABLE_DEBUG
+    wire signed [10:0]  debug_offset  = {1'b0,h} - (640 - (1<<DEBUG_SCALE)*(`Qm+`Qn) - 1);
+    wire                in_debug_info = debug_offset>=0 && v<8*(1<<DEBUG_SCALE)+1;
+    wire                in_debug_grid = in_debug_info && debug_offset[DEBUG_SCALE-1:0]==0||v[DEBUG_SCALE-1:0]==0;
+    wire `F             debug_bit_mask = 1 << (`Qmn-debug_offset[10:DEBUG_SCALE]-1);
+    wire [1:0]          debug_level =
+                            in_debug_grid                   ? ( debug_offset==(`Qm<<DEBUG_SCALE) ? 2'b10 : 2'b00 ):
+                            v[DEBUG_SCALE+2:DEBUG_SCALE]==0 ? ( (playerX&debug_bit_mask)!=0 ? 2'b11 : 2'b01) :
+                            v[DEBUG_SCALE+2:DEBUG_SCALE]==1 ? ( (playerY&debug_bit_mask)!=0 ? 2'b11 : 2'b01) :
+                            v[DEBUG_SCALE+2:DEBUG_SCALE]==3 ? ( (facingX&debug_bit_mask)!=0 ? 2'b11 : 2'b01) :
+                            v[DEBUG_SCALE+2:DEBUG_SCALE]==4 ? ( (facingY&debug_bit_mask)!=0 ? 2'b11 : 2'b01) :
+                            v[DEBUG_SCALE+2:DEBUG_SCALE]==6 ? ( (vplaneX&debug_bit_mask)!=0 ? 2'b11 : 2'b01) :
+                            v[DEBUG_SCALE+2:DEBUG_SCALE]==7 ? ( (vplaneY&debug_bit_mask)!=0 ? 2'b11 : 2'b01) :
+                                                              2'b00;
+`else
+    wire                in_debug_info = 0;
+    wire [1:0]          debug_level = 0;
+`endif
+
     assign r =
+        in_debug_info   ?   debug_level :
         in_player_pixel ?   2'b11 :             // Player pixel in map is yellow.
         in_player_cell  ?   0 :
         in_map_gridline ?   0 :
@@ -274,6 +298,7 @@ module raybox(
                             background;
     
     assign g =
+        in_debug_info   ?   debug_level :
         in_player_pixel ?   2'b11 :             // Player pixel in map is yellow.
         in_player_cell  ?   2'b01 :             // Player cell in map is dark green.
         in_map_gridline ?   0 :
@@ -284,6 +309,7 @@ module raybox(
                             background;
     
     assign b =
+        in_debug_info   ?   debug_level :
         in_player_pixel ?   0 :
         in_player_cell  ?   0 :
         in_map_gridline ?   2'b01 :             // Map gridlines are dark blue.

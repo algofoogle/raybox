@@ -69,6 +69,8 @@ module raybox_de0nano(
     .clk      (clock_25),
     .reset    (reset),
     .show_map (show_map),
+    .show_debug(1),
+    
     .moveL    (moveL),
     .moveR    (moveR),
     .moveF    (moveF),
