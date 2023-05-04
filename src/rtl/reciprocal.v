@@ -8,8 +8,6 @@
 //SMELL: If possible, make this work using parameters in fixed_point_params.v:
 // `include "fixed_point_params.v"
 
-`define STRINGIFY(x) `"x`"  // Debug helper.
-
 //`define LZC_TYPE_A  //SMELL: lzc_a is currently hardcoded to 32-bit.
 `define LZC_TYPE_B
 //`define LZC_TYPE_C
@@ -25,18 +23,23 @@ module reciprocal #(
     output  wire            o_sat   // 1=saturated
 );
 /* verilator lint_off REALCVT */
-    localparam ROUNDING_FIX = -0.5; //SMELL.
+    `define ROUNDING_FIX -0.5
     // Find raw fixed-point value representing 1.466:
     // In  Q6.10: 1.466*1024  =  1501(.184) = 0x005DD.
     // In Q16.16: 1.466*65536 = 96075(.776) = 0x1774B (or 0x1774C if rounded UP).
     // localparam integer nb = 1.466*(2.0**N);
-    localparam [M-1:-N] n1466 = 1.466*(2.0**N)+ROUNDING_FIX; //'h1774B;      // 1.466 in QM.N
+    
+    //SMELL: Wackiness to work around Quartus bug: https://community.intel.com/t5/Intel-Quartus-Prime-Software/BUG/td-p/1483047
+    localparam SCALER = 1<<N;
+    localparam real FSCALER = SCALER;
+    
+    localparam [M-1:-N] n1466 = 1.466*FSCALER+`ROUNDING_FIX; //'h1774B;      // 1.466 in QM.N
 
     // Find raw fixed-point value representing 1.0012:
     // In  Q6.10: 1.0012*1024  =  1025(.2288) = 0x00401.
     // In Q16.16: 1.0012*65536 = 65614(.6432) = 0x1004E (or 0x1004F if rounded UP).
     // localparam integer nd = 1.0012*(2.0**N);
-    localparam [M-1:-N] n10012 = 1.0012*(2.0**N)+ROUNDING_FIX; //'h1004E;      // 1.0012 in QM.N
+    localparam [M-1:-N] n10012 = 1.0012*FSCALER+`ROUNDING_FIX; //'h1004E;      // 1.0012 in QM.N
 /* verilator lint_on REALCVT */
 
     localparam [M-1:-N] nSat = ~(1<<(M+N-1)); //'h7FFF_FFFF, if Q16.16;  // Max positive integer (i.e. saturation).

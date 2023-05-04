@@ -67,17 +67,25 @@ module raybox(
     localparam `F vplaneYstart      = `realF( 0.0); // ...makes FOV 45deg. Too small, but makes maths easy for now.
 
 `ifdef DUMMY_MAP
-    localparam `I playerXstartcell  = 1;
-    localparam `I playerYstartcell  = 13;
+    //localparam `I playerXstartcell  = 1;
+    //localparam `I playerYstartcell  = 13;
+    //SMELL: defines instead of params, to work around Quartus bug: https://community.intel.com/t5/Intel-Quartus-Prime-Software/BUG/td-p/1483047
+    `define       playerXstartcell    1
+    `define       playerYstartcell    13
 `else
-    localparam `I playerXstartcell  = 8;
-    localparam `I playerYstartcell  = 14;
+    //localparam `I playerXstartcell  = 8;
+    //localparam `I playerYstartcell  = 14;
+    `define       playerXstartcell    8
+    `define       playerYstartcell    14
 `endif
     // Player's full start position is in the middle of a cell:
-    localparam playerXstartoffset   = 0.50;    // Should normally be 0.5, but for debugging might need to be other values.
-    localparam playerYstartoffset   = 0.50;
-    localparam `F playerXstart      = `realF(playerXstartcell+playerXstartoffset);
-    localparam `F playerYstart      = `realF(playerYstartcell+playerYstartoffset);
+    //localparam playerXstartoffset   = 0.50;    // Should normally be 0.5, but for debugging might need to be other values.
+    //localparam playerYstartoffset   = 0.50;
+    //SMELL: defines instead of params, to work around Quartus bug: https://community.intel.com/t5/Intel-Quartus-Prime-Software/BUG/td-p/1483047
+    `define       playerXstartoffset  0.5
+    `define       playerYstartoffset  0.5
+    localparam `F playerXstart      = `realF(`playerXstartcell+`playerXstartoffset);
+    localparam `F playerYstart      = `realF(`playerYstartcell+`playerYstartoffset);
 
     localparam `F moveQuantum       = `realF(0.001953125);                      //0b0.0000_0000_1000 or    8 or  0.4cm => ~0.23m/s =>  0.8km/hr
     localparam `F playerCrawl       =  4*moveQuantum;   //`realF(0.007812500);  //0b0.0000_0010_0000 or  4*8 or ~1.5cm => ~0.94m/s =>  3.3km/hr
