@@ -442,6 +442,7 @@ void handle_control_inputs(bool prepare) {
       TB->m_core->write_new_position = 0;
     }
 
+    TB->m_core->show_debug = 1;
     TB->m_core->reset     |= keystate[SDL_SCANCODE_R];
     TB->m_core->show_map  |= keystate[SDL_SCANCODE_TAB ] | gLockInputs[LOCK_MAP];
     TB->m_core->moveF     |= keystate[SDL_SCANCODE_W   ] | gLockInputs[LOCK_F];
@@ -852,8 +853,15 @@ int main(int argc, char **argv) {
       // s += " v_shift="   + to_string(v_shift);
       // s += " h_adjust="  + to_string(h_adjust);
       // Player position:
-      s += " pX=" + to_string(fixed2double(TB->m_core->DESIGN->playerX));
-      s += " pY=" + to_string(fixed2double(TB->m_core->DESIGN->playerY));
+      s += " pX,Y=("
+        + to_string(fixed2double(TB->m_core->DESIGN->playerX)) + ", "
+        + to_string(fixed2double(TB->m_core->DESIGN->playerY)) + ") ";
+      s += " fX,Y=("
+        + to_string(fixed2double(TB->m_core->DESIGN->facingX)) + ", "
+        + to_string(fixed2double(TB->m_core->DESIGN->facingY)) + ") ";
+      s += " vX,Y=("
+        + to_string(fixed2double(TB->m_core->DESIGN->vplaneX)) + ", "
+        + to_string(fixed2double(TB->m_core->DESIGN->vplaneY)) + ") ";
 #endif
       get_text_and_rect(renderer, 10, VFULL+10, s.c_str(), font, &text_texture, &rect);
       if (text_texture) {

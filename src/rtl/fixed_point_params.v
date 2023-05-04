@@ -7,6 +7,7 @@
 // This might be made better if we properly check for reciprocal saturation.
 `define Qm          12                  // Signed.
 `define Qn          12                  // I don't think I can go lower than 10; things get glitchy otherwise.
+`define Qmn         (`Qm+`Qn)
 `define QMI         (`Qm-1)             // Just for convenience; M-1.
 
 //SMELL: Base all of these hardcoded numbers on Qm and Qn values:

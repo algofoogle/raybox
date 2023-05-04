@@ -10,4 +10,4 @@ results/*
 # Other junk
 __pycache__
 .vscode
-*.v.bak
+*.bak
