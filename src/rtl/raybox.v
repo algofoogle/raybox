@@ -67,17 +67,17 @@ module raybox(
     localparam `F vplaneYstart      = `realF( 0.0); // ...makes FOV 45deg. Too small, but makes maths easy for now.
 
 `ifdef DUMMY_MAP
-    localparam `I playerXstartcell  = 1;
-    localparam `I playerYstartcell  = 13;
+    localparam real playerXstartcell  =  1.0;
+    localparam real playerYstartcell  = 13.0;
 `else
-    localparam `I playerXstartcell  = 8;
-    localparam `I playerYstartcell  = 14;
+    localparam playerXstartcell  =  8.0;
+    localparam playerYstartcell  = 14.0;
 `endif
     // Player's full start position is in the middle of a cell:
     localparam playerXstartoffset   = 0.50;    // Should normally be 0.5, but for debugging might need to be other values.
     localparam playerYstartoffset   = 0.50;
-    localparam `F playerXstart      = `realF(playerXstartcell+playerXstartoffset);
-    localparam `F playerYstart      = `realF(playerYstartcell+playerYstartoffset);
+    localparam `F playerXstart      = `realF(1.0); //+playerXstartoffset);
+    localparam `F playerYstart      = `realF(13.0); //+playerYstartoffset);
 
     localparam `F moveQuantum       = `realF(0.001953125);                      //0b0.0000_0000_1000 or    8 or  0.4cm => ~0.23m/s =>  0.8km/hr
     localparam `F playerCrawl       =  4*moveQuantum;   //`realF(0.007812500);  //0b0.0000_0010_0000 or  4*8 or ~1.5cm => ~0.94m/s =>  3.3km/hr
@@ -92,8 +92,113 @@ module raybox(
     // -  32  (4*8) for slow walking speed
     // -  80 (10*8) regular walking speed
     // - 144 (18*8) for running.
+		
+		localparam A = `Qn;
+		localparam B = 12.0;
+		localparam real C = 12.0;
+		localparam integer D = 12;
+		localparam ANTON = -0.5;
+		
+localparam N = 12.0;
+initial begin
+  $display("%f %d", 1.0*(2.0*N),     1.0*(2.0*N));     // Two products.
+  $display("%f %d", 1.0*(2.0**12.0), 1.0*(2.0**12.0)); // Product & power.
+  $display("%f %d", 1.0*(2.0**N),    1.0*(2.0**N));    // Product & power.
+  $display("%f %d",     (2.0**N),        (2.0**N));    // Power only.
+end
 
     initial begin
+				$display("%f %d", `realF(playerXstartcell), `realF(playerXstartcell));
+				$display("%f %d", `realF(playerXstartoffset), `realF(playerXstartoffset));
+				$display("%f %d", `realF(playerXstartcell+playerXstartoffset), `realF(playerXstartcell+playerXstartoffset));
+				$display("%f %d", `realF((1.0)+(0.50)), `realF((1.0)+(0.50)));
+				$display("%f %d", `realF(1.0)+`realF(0.50), `realF(1.0)+`realF(0.50));
+				$display("%f %d", ((1.0)+(0.50))*(2.0**`Qn), ((1.0)+(0.50))*(2.0**`Qn));
+				$display("%f %d", ((1.0)+(0.50))*(2.0**12), ((1.0)+(0.50))*(2.0**12));
+				$display("%f %d", ((1.0)+(0.50))*(2.0**12.0), ((1.0)+(0.50))*(2.0**12.0));
+				$display("%f %d", playerXstartcell, playerXstartcell);
+				$display("%f %d", playerXstartoffset, playerXstartoffset);
+				$display("%f %d", 1.466*(2.0**12), 				1.466*(2.0**12));
+				$display("%f %d", 1.466*(2.0**12)+0.5, 		1.466*(2.0**12)+0.5);
+				$display("%f %d", 1.466*(2.0**12)+-0.5, 	1.466*(2.0**12)+-0.5);
+				$display("%f %d", 1.466*(2.0**12)+ANTON, 	1.466*(2.0**12)+ANTON);
+				$display("%f %d", 1.466*(2.0**`Qn), 			1.466*(2.0**`Qn));
+				$display("%f %d", 1.466*(2.0**`Qn)+0.5, 	1.466*(2.0**`Qn)+0.5);
+				$display("%f %d", 1.466*(2.0**`Qn)+-0.5, 	1.466*(2.0**`Qn)+-0.5);
+				$display("%f %d", 1.466*(2.0**`Qn)+ANTON, 1.466*(2.0**`Qn)+ANTON);
+				
+				$display("%f %d", 			     A, 				     A);
+				$display("%f %d", 			 2.0*A, 				 2.0*A);
+				$display("%f %d", 			(2.0*A),				(2.0*A));
+				$display("%f %d", 	1.0*(2.0*A),		1.0*(2.0*A));
+				$display("%f %d", 	1.5*(2.0*A),		1.5*(2.0*A));
+				$display("%f %d", 	    (2.0*A)*1.0,    (2.0*A)*1.0);
+				$display("%f %d", 	    (2.0*A)*1.5,    (2.0*A)*1.5);
+				$display("%f %d", 			2.0**A, 				2.0**A);
+				$display("%f %d", 		 (2.0**A), 			 (2.0**A));
+				$display("%f %d",  1.0*(2.0**A), 	 1.0*(2.0**A));
+				$display("%f %d",  1.5*(2.0**A), 	 1.5*(2.0**A));
+				$display("%f %d", 		 (2.0**A)*1.0,	 (2.0**A)*1.0);
+				$display("%f %d", 		 (2.0**A)*1.5,	 (2.0**A)*1.5);
+				$display("%f %d", 1.466*(2.0**A), 			1.466*(2.0**A));
+				$display("%f %d", 1.466*(2.0**A)+0.5, 	1.466*(2.0**A)+0.5);
+				$display("%f %d", 1.466*(2.0**A)+-0.5, 	1.466*(2.0**A)+-0.5);
+				$display("%f %d", 1.466*(2.0**A)+ANTON, 1.466*(2.0**A)+ANTON);
+				
+				$display("%f %d", 			     B, 				     B);
+				$display("%f %d", 			 2.0*B, 				 2.0*B);
+				$display("%f %d", 			(2.0*B),				(2.0*B));
+				$display("%f %d", 	1.0*(2.0*B),		1.0*(2.0*B));
+				$display("%f %d", 	1.5*(2.0*B),		1.5*(2.0*B));
+				$display("%f %d", 	    (2.0*B)*1.0,    (2.0*B)*1.0);
+				$display("%f %d", 	    (2.0*B)*1.5,    (2.0*B)*1.5);
+				$display("%f %d", 			2.0**B, 				2.0**B);
+				$display("%f %d", 		 (2.0**B), 			 (2.0**B));
+				$display("%f %d",  1.0*(2.0**B), 	 1.0*(2.0**B));
+				$display("%f %d",  1.5*(2.0**B), 	 1.5*(2.0**B));
+				$display("%f %d", 		 (2.0**B)*1.0,	 (2.0**B)*1.0);
+				$display("%f %d", 		 (2.0**B)*1.5,	 (2.0**B)*1.5);
+				$display("%f %d", 1.466*(2.0**B), 			1.466*(2.0**B));
+				$display("%f %d", 1.466*(2.0**B)+0.5, 	1.466*(2.0**B)+0.5);
+				$display("%f %d", 1.466*(2.0**B)+-0.5, 	1.466*(2.0**B)+-0.5);
+				$display("%f %d", 1.466*(2.0**B)+ANTON, 1.466*(2.0**B)+ANTON);
+				
+				$display("%f %d", 			     C, 				     C);
+				$display("%f %d", 			 2.0*C, 				 2.0*C);
+				$display("%f %d", 			(2.0*C),				(2.0*C));
+				$display("%f %d", 	1.0*(2.0*C),		1.0*(2.0*C));
+				$display("%f %d", 	1.5*(2.0*C),		1.5*(2.0*C));
+				$display("%f %d", 	    (2.0*C)*1.0,    (2.0*C)*1.0);
+				$display("%f %d", 	    (2.0*C)*1.5,    (2.0*C)*1.5);
+				$display("%f %d", 			2.0**C, 				2.0**C);
+				$display("%f %d", 		 (2.0**C), 			 (2.0**C));
+				$display("%f %d",  1.0*(2.0**C), 	 1.0*(2.0**C));
+				$display("%f %d",  1.5*(2.0**C), 	 1.5*(2.0**C));
+				$display("%f %d", 		 (2.0**C)*1.0,	 (2.0**C)*1.0);
+				$display("%f %d", 		 (2.0**C)*1.5,	 (2.0**C)*1.5);
+				$display("%f %d", 1.466*(2.0**C), 			1.466*(2.0**C));
+				$display("%f %d", 1.466*(2.0**C)+0.5, 	1.466*(2.0**C)+0.5);
+				$display("%f %d", 1.466*(2.0**C)+-0.5, 	1.466*(2.0**C)+-0.5);
+				$display("%f %d", 1.466*(2.0**C)+ANTON, 1.466*(2.0**C)+ANTON);
+				
+				$display("%f %d", 			     D, 				     D);
+				$display("%f %d", 			 2.0*D, 				 2.0*D);
+				$display("%f %d", 			(2.0*D),				(2.0*D));
+				$display("%f %d", 	1.0*(2.0*D),		1.0*(2.0*D));
+				$display("%f %d", 	1.5*(2.0*D),		1.5*(2.0*D));
+				$display("%f %d", 	    (2.0*D)*1.0,    (2.0*D)*1.0);
+				$display("%f %d", 	    (2.0*D)*1.5,    (2.0*D)*1.5);
+				$display("%f %d", 			2.0**D, 				2.0**D);
+				$display("%f %d", 		 (2.0**D), 			 (2.0**D));
+				$display("%f %d",  1.0*(2.0**D), 	 1.0*(2.0**D));
+				$display("%f %d",  1.5*(2.0**D), 	 1.5*(2.0**D));
+				$display("%f %d", 		 (2.0**D)*1.0,	 (2.0**D)*1.0);
+				$display("%f %d", 		 (2.0**D)*1.5,	 (2.0**D)*1.5);
+				$display("%f %d", 1.466*(2.0**D), 			1.466*(2.0**D));
+				$display("%f %d", 1.466*(2.0**D)+0.5, 	1.466*(2.0**D)+0.5);
+				$display("%f %d", 1.466*(2.0**D)+-0.5, 	1.466*(2.0**D)+-0.5);
+				$display("%f %d", 1.466*(2.0**D)+ANTON, 1.466*(2.0**D)+ANTON);
+				
         $display("Raybox params: Fixed-point precision is Q%0d.%0d (%0d-bit)", `Qm, `Qn, `Qmn);
         $display("Raybox params: player(X,Y)start=%X,%X", playerXstart, playerYstart);
         $display("Raybox params: facing(X,Y)start=%X,%X", facingXstart, facingYstart);
