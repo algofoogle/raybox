@@ -39,12 +39,14 @@ module reciprocal #(
     localparam [M-1:-N] n10012 = 1.0012*(2.0**N)+ROUNDING_FIX; //'h1004E;      // 1.0012 in QM.N
 /* verilator lint_on REALCVT */
 
-    localparam [M-1:-N] nSat = (24'b1<<(M+N-1))-24'b1; //'h7FFF_FFFF;  // Max positive integer (i.e. saturation).  /* FIXME re M,N.*/
+    localparam [M-1:-N] nSat = ~(1<<(M+N-1)); //'h7FFF_FFFF, if Q16.16;  // Max positive integer (i.e. saturation).
 
     localparam S = M-1; // Sign bit (top-most bit index too).
     // localparam [5:0] M = 16;
 
     initial begin
+        //NOTE: In Quartus, at compile-time, this should hopefully spit out the params from above
+        // in the compilation log:
         $display("reciprocal params for Q%0d.%0d:  n1466=%X, n10012=%X, nSat=%X", M, N, n1466, n10012, nSat);
     end
 

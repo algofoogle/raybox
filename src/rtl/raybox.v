@@ -76,8 +76,8 @@ module raybox(
     // Player's full start position is in the middle of a cell:
     localparam playerXstartoffset   = 0.50;    // Should normally be 0.5, but for debugging might need to be other values.
     localparam playerYstartoffset   = 0.50;
-    localparam `F playerXstartpos   = `realF(playerXstartcell+playerXstartoffset);
-    localparam `F playerYstartpos   = `realF(playerYstartcell+playerYstartoffset);
+    localparam `F playerXstart      = `realF(playerXstartcell+playerXstartoffset);
+    localparam `F playerYstart      = `realF(playerYstartcell+playerYstartoffset);
 
     localparam `F moveQuantum       = `realF(0.001953125);                      //0b0.0000_0000_1000 or    8 or  0.4cm => ~0.23m/s =>  0.8km/hr
     localparam `F playerCrawl       =  4*moveQuantum;   //`realF(0.007812500);  //0b0.0000_0010_0000 or  4*8 or ~1.5cm => ~0.94m/s =>  3.3km/hr
@@ -85,12 +85,21 @@ module raybox(
     localparam `F playerRun         = 18*moveQuantum;   //`realF(0.035156250);  //0b0.0000_1001_0000 or 18*8 or ~7cm   => ~4.22m/s => 15.2km/hr
 
     localparam `F playerMove        = playerWalk;
-    // Note that for Q12.12, it seems playerMove needs to be a multiple of 8 (i.e. 'b0.000000001000) in order to be reliable.
+    // Note that for Q12.12, it seems playerMove needs to be a multiple of 8 (i.e. 'b0.000000001000)
+    // in order to be reliable (although this goes out the window when fine-grained rotations are involved).
     // This should be OK: It's a very small movement, equivalent to maybe 5mm in the real world?
     // My preference for player speeds per frame at 60fps:
     // -  32  (4*8) for slow walking speed
     // -  80 (10*8) regular walking speed
     // - 144 (18*8) for running.
+
+    initial begin
+        $display("Raybox params: Fixed-point precision is Q%0d.%0d (%0d-bit)", `Qm, `Qn, `Qmn);
+        $display("Raybox params: player(X,Y)start=%X,%X", playerXstart, playerYstart);
+        $display("Raybox params: facing(X,Y)start=%X,%X", facingXstart, facingYstart);
+        $display("Raybox params: vplane(X,Y)start=%X,%X", vplaneXstart, vplaneYstart);
+        $display("Raybox params: playerMove=%X", playerMove);
+    end
 
 /* verilator lint_on REALCVT */
 
@@ -124,8 +133,8 @@ module raybox(
     always @(posedge clk) begin
         if (reset) begin
             // Set player's starting position and direction:
-            playerX <= playerXstartpos;
-            playerY <= playerYstartpos;
+            playerX <= playerXstart;
+            playerY <= playerYstart;
 
             facingX <= facingXstart;
             facingY <= facingYstart;
