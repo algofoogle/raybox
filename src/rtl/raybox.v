@@ -14,7 +14,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 
-`default_nettype none
+//`default_nettype none
 `timescale 1ns / 1ps
 
 `define DUMMY_MAP       // If defined, map is made by combo logic instead of ROM.
@@ -99,12 +99,16 @@ module raybox(
 		localparam integer D = 12;
 		localparam ANTON = -0.5;
 		
-localparam N = 12.0;
+		localparam N = 12;
+
+		localparam real FOO = (1<<N);
+
 initial begin
-  $display("%f %d", 1.0*(2.0*N),     1.0*(2.0*N));     // Two products.
-  $display("%f %d", 1.0*(2.0**12.0), 1.0*(2.0**12.0)); // Product & power.
-  $display("%f %d", 1.0*(2.0**N),    1.0*(2.0**N));    // Product & power.
-  $display("%f %d",     (2.0**N),        (2.0**N));    // Power only.
+	$display("%f %d", 1.5*FOO, 1.5*FOO);
+  $display("%f %f", 1.0*(2.0*N),     1.0*(2.0*N));     // Two products.
+  $display("%f %f", 1.0*(2.0**12.0), 1.0*(2.0**12.0)); // Product & power.
+  $display("%f %f", 1.0*(2.0**N),    1.5*FOO);    // Product & power.
+  $display("%f %f",     (2.0**N),        (2.0**N));    // Power only.
 end
 
     initial begin
