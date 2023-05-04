@@ -164,10 +164,21 @@ void get_text_and_rect(
   rect->h = text_height;
 }
 
-double fixed2double(uint32_t fixed) {
+// If part is 0, calculate from both the integer and fractional parts.
+// If <0, calculate from fractional part only.
+// If >0, calculate from integer part only.
+double fixed2double(uint32_t fixed, int part = 0) {
   int32_t t = fixed;
+  if (part<0) {
+    // Kill integer part:
+    t &= (1<<Qn)-1;
+  }
+  else if (part>0) {
+    // Kill fractional part:
+    t &= ((1<<Qm)-1)<<Qn;
+  }
   // Sign extension:
-  bool sign = fixed & (1<<((Qm+Qn)-1));
+  bool sign = t & (1<<((Qm+Qn)-1));
   if (sign) t |= ((1<<(32-(Qm+Qn)))-1)<<(Qm+Qn);
   return double(t) / pow(2.0, Qn);
 }
@@ -240,12 +251,14 @@ void recalc_override_vectors(const Uint8* k) {
   const double playerWalk   = move_quantum * 10.0; // Should be 0.01953125
   const double playerRun    = move_quantum * 18.0;
   const double playerMove   = playerWalk;
+  double m = playerMove;
+  if (k[SDL_SCANCODE_LSHIFT]) m = playerRun;
   if (k[SDL_SCANCODE_LEFT])   rotate_override_vectors( 0.01);
   if (k[SDL_SCANCODE_RIGHT])  rotate_override_vectors(-0.01);
-  if (k[SDL_SCANCODE_W]) { gOvers.px += playerMove * gOvers.fx;   gOvers.py += playerMove * gOvers.fy; }
-  if (k[SDL_SCANCODE_S]) { gOvers.px -= playerMove * gOvers.fx;   gOvers.py -= playerMove * gOvers.fy; }
-  if (k[SDL_SCANCODE_A]) { gOvers.px -= playerMove * gOvers.vx;   gOvers.py -= playerMove * gOvers.vy; }
-  if (k[SDL_SCANCODE_D]) { gOvers.px += playerMove * gOvers.vx;   gOvers.py -= playerMove * gOvers.vy; }
+  if (k[SDL_SCANCODE_W]) { gOvers.px += m * gOvers.fx;   gOvers.py += m * gOvers.fy; }
+  if (k[SDL_SCANCODE_S]) { gOvers.px -= m * gOvers.fx;   gOvers.py -= m * gOvers.fy; }
+  if (k[SDL_SCANCODE_A]) { gOvers.px -= m * gOvers.vx;   gOvers.py -= m * gOvers.vy; }
+  if (k[SDL_SCANCODE_D]) { gOvers.px += m * gOvers.vx;   gOvers.py += m * gOvers.vy; }
 }
 
 
@@ -569,6 +582,18 @@ void overflow_test(uint8_t *fb) {
 
 
 
+void render_text(SDL_Renderer* renderer, TTF_Font* font, int x, int y, string s) {
+  SDL_Rect r;
+  SDL_Texture* tex;
+  get_text_and_rect(renderer, x, y, s.c_str(), font, &tex, &r);
+  if (tex) {
+    SDL_RenderCopy(renderer, tex, NULL, &r);
+    SDL_DestroyTexture(tex);
+  }
+}
+
+
+
 int main(int argc, char **argv) {
 
   Verilated::commandArgs(argc, argv);
@@ -827,10 +852,9 @@ int main(int argc, char **argv) {
       // s += " v_shift="   + to_string(v_shift);
       // s += " h_adjust="  + to_string(h_adjust);
       // Player position:
-      s += " pX=" + to_string(double(TB->m_core->DESIGN->playerX)*pow(2.0,-Qn));
-      s += " pY=" + to_string(double(TB->m_core->DESIGN->playerY)*pow(2.0,-Qn));
+      s += " pX=" + to_string(fixed2double(TB->m_core->DESIGN->playerX));
+      s += " pY=" + to_string(fixed2double(TB->m_core->DESIGN->playerY));
 #endif
-
       get_text_and_rect(renderer, 10, VFULL+10, s.c_str(), font, &text_texture, &rect);
       if (text_texture) {
         SDL_RenderCopy(renderer, text_texture, NULL, &rect);
@@ -840,22 +864,70 @@ int main(int argc, char **argv) {
         printf("Cannot create text_texture\n");
       }
     }
-    if (gGuides && gOverrideVectors) {
-      SDL_SetRenderDrawColor(renderer, 255,255,255,255);
+    if (gGuides) {
       int ox = HDA/2;
       int oy = VDA/2;
-      int lx = ox+(gOvers.fx-gOvers.vx)*VDA/4;
-      int ly = oy+(gOvers.fy-gOvers.vy)*VDA/4;
-      int rx = ox+(gOvers.fx+gOvers.vx)*VDA/4;
-      int ry = oy+(gOvers.fy+gOvers.vy)*VDA/4;
+      double s = VDA/4;
+      //SMELL: Add in grid-cell alignment too.
+      // Draw the design's current vectors in green:
+      SDL_SetRenderDrawColor(renderer, 0,255,0,255);
+      double fx = fixed2double(TB->m_core->DESIGN->facingX);
+      double fy = fixed2double(TB->m_core->DESIGN->facingY);
+      double vx = fixed2double(TB->m_core->DESIGN->vplaneX);
+      double vy = fixed2double(TB->m_core->DESIGN->vplaneY);
+      int lx = ox+(fx-vx)*s;
+      int ly = oy+(fy-vy)*s;
+      int rx = ox+(fx+vx)*s;
+      int ry = oy+(fy+vy)*s;
       // Draw center directional line:
-      SDL_RenderDrawLine(renderer, ox, oy, ox+gOvers.fx*VDA/4, oy+gOvers.fy*VDA/4);
+      SDL_RenderDrawLine(renderer, ox, oy, ox+fx*s, oy+fy*s);
       // Draw left camera vector:
       SDL_RenderDrawLine(renderer, ox, oy, lx, ly);
       // Draw right camera vector:
       SDL_RenderDrawLine(renderer, ox, oy, rx, ry);
       // Draw viewplane:
       SDL_RenderDrawLine(renderer, lx, ly, rx, ry);
+      // Draw the box representing the position of the player in the current cell,
+      // i.e. just draw a unit square offset by the fractional part of the player position:
+      double px  = fixed2double(TB->m_core->DESIGN->playerX,  1); // Integer part.
+      double py  = fixed2double(TB->m_core->DESIGN->playerY,  1); // Integer part.
+      double pxf = fixed2double(TB->m_core->DESIGN->playerX, -1); // Fractional part.
+      double pyf = fixed2double(TB->m_core->DESIGN->playerY, -1); // Fractional part.
+      SDL_Rect r;
+      r.x = ox-pxf*s;
+      r.y = oy-pyf*s;
+      r.w = r.h = s;
+      SDL_RenderDrawRect(renderer, &r);
+      render_text(renderer, font, r.x+3, r.y+s-14, to_string(int(px)) + ", " + to_string(int(py)));
+      if (gOverrideVectors) {
+        // Now draw sim's overriding vectors over them, in white:
+        SDL_SetRenderDrawColor(renderer, 255,255,255,255);
+        lx = ox+(gOvers.fx-gOvers.vx)*s;
+        ly = oy+(gOvers.fy-gOvers.vy)*s;
+        rx = ox+(gOvers.fx+gOvers.vx)*s;
+        ry = oy+(gOvers.fy+gOvers.vy)*s;
+        // Draw center directional line:
+        SDL_RenderDrawLine(renderer, ox, oy, ox+gOvers.fx*VDA/4, oy+gOvers.fy*VDA/4);
+        // Draw left camera vector:
+        SDL_RenderDrawLine(renderer, ox, oy, lx, ly);
+        // Draw right camera vector:
+        SDL_RenderDrawLine(renderer, ox, oy, rx, ry);
+        // Draw viewplane:
+        SDL_RenderDrawLine(renderer, lx, ly, rx, ry);
+        // Draw box:
+        px = gOvers.px;
+        py = gOvers.py;
+        double dummy;
+        pxf = modf(px, &dummy);
+        pyf = modf(py, &dummy);
+        // Fix negative partials: //SMELL: Why is this necessary?
+        if (pxf < 0) pxf = pxf+1;
+        if (pyf < 0) pyf = pyf+1;
+        r.x = ox-pxf*s;
+        r.y = oy-pyf*s;
+        r.w = r.h = s;
+        SDL_RenderDrawRect(renderer, &r);
+      }
     }
     SDL_RenderPresent(renderer);
   }

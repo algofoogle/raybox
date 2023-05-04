@@ -75,15 +75,16 @@ module raybox(
     localparam `F playerXstartpos   = `realF(playerXstartcell+playerXstartoffset);
     localparam `F playerYstartpos   = `realF(playerYstartcell+playerYstartoffset);
 
-    localparam `F playerCrawl       = `realF(0.00781250);   //0b0.0000_0010_0000 or  4*8 or ~1.5cm => ~0.94m/s =>  3.3km/hr
-    localparam `F playerWalk        = `realF(0.01953125);   //0b0.0000_0101_0000 or 10*8 or ~4cm   => ~2.34m/s =>  8.4km/hr
-    localparam `F playerRun         = `realF(0.03515625);   //0b0.0000_1001_0000 or 18*8 or ~7cm   => ~4.22m/s => 15.2km/hr
+    localparam `F moveQuantum       = `realF(0.001953125);                      //0b0.0000_0000_1000 or    8 or  0.4cm => ~0.23m/s =>  0.8km/hr
+    localparam `F playerCrawl       =  4*moveQuantum;   //`realF(0.007812500);  //0b0.0000_0010_0000 or  4*8 or ~1.5cm => ~0.94m/s =>  3.3km/hr
+    localparam `F playerWalk        = 10*moveQuantum;   //`realF(0.019531250);  //0b0.0000_0101_0000 or 10*8 or ~4cm   => ~2.34m/s =>  8.4km/hr
+    localparam `F playerRun         = 18*moveQuantum;   //`realF(0.035156250);  //0b0.0000_1001_0000 or 18*8 or ~7cm   => ~4.22m/s => 15.2km/hr
 
     localparam `F playerMove        = playerWalk;
     // Note that for Q12.12, it seems playerMove needs to be a multiple of 8 (i.e. 'b0.000000001000) in order to be reliable.
     // This should be OK: It's a very small movement, equivalent to maybe 5mm in the real world?
     // My preference for player speeds per frame at 60fps:
-    // -  32 (4*8) for slow walking speed
+    // -  32  (4*8) for slow walking speed
     // -  80 (10*8) regular walking speed
     // - 144 (18*8) for running.
 
@@ -141,6 +142,16 @@ module raybox(
                 vplaneY <= new_vplaneY;
             end else begin
                 // Handle player motion:
+                //SMELL: This isn't properly implemented:
+                // - L/R should use vplane vector (which isn't a unit)
+                // - F/B should use facing vector.
+                // If we were to use a multiplier, we'd do something like this:
+                //      if (moveL) begin
+                //          playerX <= playerX - `FF(playerMove*vplaneX);
+                //          playerY <= playerY - `FF(playerMove*vplaneY);
+                //      end else ...
+                // We don't HAVE to use a multiplier, though, if we know things about the scale
+                // of playerMove.
                 if (moveL)
                     playerX <= playerX - playerMove;
                 else if (moveR)
