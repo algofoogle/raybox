@@ -85,15 +85,21 @@ module tracer(
     reg hit;
     reg [9:0] col_counter;
 
-    //SMELL: Roll these X,Y pairs up into 1 line per vector:
-    reg `I      mapX;           // Map cell we're testing...
-    reg `I      mapY;           // ...
-    reg `F      rayDirX;        // Ray direction vector...
-    reg `F      rayDirY;        // ...
-    wire rxi =  rayDirX > 0;    // Is ray X direction positive?
-    wire ryi =  rayDirY > 0;    // Is ray Y direction positive?
-    reg `F      rayIncX;        // What increment should we add to the ray direction per screen column...
-    reg `F      rayIncY;        // ...?
+    reg `I      mapX, mapY;             // Map cell we're testing.
+
+    reg `F      rayAddX, rayAddY;       // Ray direction offset (full precision; before scaling).
+    // `rayAdd` will start off being -vplane*(columns/2) and will gradually accumulate another
+    // +vplane per column until it reaches +vplane*(columns/2). It gets scaled back to a normal
+    // fractional value with >>>8 when it gets added to `facing` in order to yield `rayDir`.
+
+    // Ray direction vector:
+    wire `F     rayDirX = facingX + (rayAddX>>>8);  //NOTE: >>>8 is based on 256 columns EITHER SIDE of screen centre.
+    wire `F     rayDirY = facingY + (rayAddY>>>8);
+
+    // Ray dir incrementing/decrementing flags per X and Y:
+    wire        rxi =  rayDirX > 0;    // Is ray X direction positive?
+    wire        ryi =  rayDirY > 0;    // Is ray Y direction positive?
+
     // trackXdist and trackYdist are not a vector; they're separate trackers
     // for distance travelled along X and Y gridlines:
     reg `F      trackXdist;
@@ -101,25 +107,25 @@ module tracer(
 
     //SMELL: Do these need to be signed? They should only ever be positive, anyway.
     // Get integer player position:
-    wire `I playerXint  = `FI(playerX);
-    wire `I playerYint  = `FI(playerY);
+    wire `I     playerXint  = `FI(playerX);
+    wire `I     playerYint  = `FI(playerY);
     // Get fractional player position:
-    wire `f playerXfrac = `Ff(playerX);
-    wire `f playerYfrac = `Ff(playerY);
+    wire `f     playerXfrac = `Ff(playerX);
+    wire `f     playerYfrac = `Ff(playerY);
 
     // Work out size of the initial partial ray step, and whether it's towards a lower or higher cell:
     //NOTE: a playerfrac could be 0, in which case the partial must be 1.0 if the rayDir is increasing,
     // or 0 otherwise. playerfrac cannot be 1.0, however, since by definition it is the fractional part
     // of the player position.
-    wire `F partialX    = rxi ? `intF(1)-`fF(playerXfrac) : `fF(playerXfrac); //SMELL: Why does Quartus think these are 32 bits being assigned?
-    wire `F partialY    = ryi ? `intF(1)-`fF(playerYfrac) : `fF(playerYfrac);
+    wire `F     partialX = rxi ? `intF(1)-`fF(playerXfrac) : `fF(playerXfrac); //SMELL: Why does Quartus think these are 32 bits being assigned?
+    wire `F     partialY = ryi ? `intF(1)-`fF(playerYfrac) : `fF(playerYfrac);
     //NOTE: We're using full `F fixed-point numbers here so we can include the possibility of an integer
     // part because of the 1.0 case, mentioned above. However, we really only need 1 extra bit to support
     // this, if that makes any difference.
     
     // What distance (i.e. what extension of our ray's vector) do we go when travelling by 1 cell in the...
-    wire `F stepXdist;  // ...map X direction...
-    wire `F stepYdist;  // ...may Y direction...
+    wire `F     stepXdist;  // ...map X direction...
+    wire `F     stepYdist;  // ...may Y direction...
     // ...which are values generated combinationally by the `reciprocal` instances below.
     //NOTE: If we needed to save space, we could have just one reciprocal,
     // and use different states to share it... which would probably work OK since we don't need to CONSTANTLY
@@ -131,21 +137,22 @@ module tracer(
     wire satX;
     wire satY;
     wire satHeight;
+    // We might need these as we improve the design, in order to stop tracing on a given axis.
 
     // Generate the initial tracking distances, as a portion of the full
     // step distances, relative to where our player is (fractionally) in the map cell:
     //SMELL: These only needs to capture the middle half of the result,
     // i.e. if we're using Q16.16, our result should still be the [15:-16] bits
     // extracted from the product:
-    wire `F2 trackXinit = stepXdist * partialX;
-    wire `F2 trackYinit = stepYdist * partialY;
+    wire `F2    trackXinit = stepXdist * partialX;
+    wire `F2    trackYinit = stepYdist * partialY;
 
     // Send the current tested map cell to the map ROM:
     assign map_col = mapX[3:0];
     assign map_row = mapY[3:0];
 
-    wire `F visualWallDist = side ? trackYdist-stepYdist : trackXdist-stepXdist;
-    wire `F heightScale;
+    wire `F     visualWallDist = side ? trackYdist-stepYdist : trackXdist-stepXdist;
+    wire `F     heightScale;
 
     // Use a wall reference height of 256, which makes the maths simpler
     // (i.e. simple bit extraction instead of a multiplier), and happens to
@@ -198,16 +205,9 @@ module tracer(
             // col_counter <= (640-512)/2; // For 512w, will range from 64..575
 
             // Get the initial ray direction (column at screen LHS):
-            rayDirX <= facingX - vplaneX;
-            rayDirY <= facingY - vplaneY;
-            // Divide vplane vector by 256 to get the ray increment per each sreen column
-            // when using a 512w render area:
-            //SMELL: Do we *need* to register these, or can they just be a wire?
-            rayIncX <= vplaneX >>> 8;    // >>>8 (sign-ext SHR) because we want div-by-256 no matter what FP depth.
-            rayIncY <= vplaneY >>> 8;    //NOTE: Verify sign extension happens here.
-            //SMELL: Q6.10 might not have enough precision to do the resolution we want
-            // for our rotations, so either we need more precision, or bresenham/DDA approach,
-            // or some other way to calculate the ray.
+            rayAddX <= -vplaneX<<<8;    //NOTE: <<<8 because it starts 256 columns to the left of centre.
+            rayAddY <= -vplaneY<<<8;
+
             side <= 0;
             state <= LCLEAR;
         end else begin
@@ -313,8 +313,9 @@ module tracer(
                     end else begin
                         // Start the next column.
                         col_counter <= col_counter + 1'b1;
-                        rayDirX <= rayDirX + rayIncX;
-                        rayDirY <= rayDirY + rayIncY;
+                        // Advance the ray dir offset (rayAdd) by 1 whole vplane vector value:
+                        rayAddX <= rayAddX + vplaneX;
+                        rayAddY <= rayAddY + vplaneY;
                         state <= INIT;
                     end
                 end
