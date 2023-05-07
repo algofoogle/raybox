@@ -19,6 +19,10 @@
 `define f           [-1:-`Qn]           //SMELL: Not signed.
 `define F2          signed [`Qm*2-1:-`Qn*2] // Double-sized F (e.g. result of multiplication).
 
+// Unsigned version of `F; same bit depth, but avoids sign comparison;
+// i.e. "negative" numbers compare to be greater than all positive numbers:
+`define UF          unsigned [`QMI:-`Qn]
+
 `define intF(i)     ((i)<<<`Qn)         // Convert const int to F.
 `define Fint(f)     ((f)>>>`Qn)         // Convert F to int.
 

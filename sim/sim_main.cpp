@@ -99,6 +99,107 @@ using namespace std;
 #include "main_tb.h"
 
 
+uint32_t gTestVectors[10][6] {
+  { // F1: Shows 0 line on X:
+    0x00001800, // 1.500000
+    0x0000D800, // 13.500000
+    0x0000011E, // 0.069824
+    0x00FFF00B, // -0.997314
+    0x000007FA, // 0.498535
+    0x0000008F, // 0.034912
+  },
+  { // F2: Shows oversized column:
+    0x00001800, // 1.500000
+    0x0000D800, // 13.500000
+    0x00000198, // 0.099609
+    0x00FFF015, // -0.994873
+    0x000007F5, // 0.497314
+    0x000000CC, // 0.049805
+  },
+  { // F3: Shows undersized column:
+    0x00002172, // 2.090332
+    0x0000D681, // 13.406494
+    0x0000052F, // 0.323975
+    0x00FFF0DE, // -0.945801
+    0x00000791, // 0.472900
+    0x00000297, // 0.161865
+  },
+  { // F4: Another undersized column:
+    0x0000249A, // 2.287598
+    0x0000C860, // 12.523438
+    0x00000E9A, // 0.912598
+    0x00FFF977, // -0.408447
+    0x00000344, // 0.204102
+    0x0000074D, // 0.456299
+  },
+  { // F5: 0 line on Y:
+    0x0000250D, // 2.315674
+    0x0000BB16, // 11.692871
+    0x00000FF5, // 0.997314
+    0x00FFFEDF, // -0.070557
+    0x00000090, // 0.035156
+    0x000007FA, // 0.498535
+  },
+  { // F6: Testing a little "jitter" on a wall block edge:
+    0x000044C4, // 4.297852
+    0x0000BC33, // 11.762451
+    0x00000F7F, // 0.968506
+    0x00FFFC09, // -0.247803
+    0x000001FB, // 0.123779
+    0x000007BF, // 0.484131
+  },
+  { // F7: HACK: 0.53125 vplane:
+    0x00001800, // 1.500000
+    0x0000D800, // 13.500000
+    0x00000000, // 0.000000
+    0x00FFF000, // -1.000000
+    0x00000880, // 0.531250
+    0x00000000, // 0.000000
+  },
+  { // F8: HACK: 0.5625 vplane:
+    0x00001800, // 1.500000
+    0x0000D800, // 13.500000
+    0x00000000, // 0.000000
+    0x00FFF000, // -1.000000
+    0x00000900, // 0.562500
+    0x00000000, // 0.000000
+  },
+  { // F9: HACK: 0.625 vplane:
+    0x00001800, // 1.500000
+    0x0000D800, // 13.500000
+    0x00000000, // 0.000000
+    0x00FFF000, // -1.000000
+    0x00000A00, // 0.625000
+    0x00000000, // 0.000000
+  },
+  { // F10: HACK: 0.75 vplane:
+    0x00001800, // 1.500000
+    0x0000D800, // 13.500000
+    0x00000000, // 0.000000
+    0x00FFF000, // -1.000000
+    0x00000C00, // 0.750000
+    0x00000000, // 0.000000
+  },
+
+  // { // F9: Q15.15: Wall edge glitch check.
+  //   0x0001A53D, // 3.290924
+  //   0x0005805E, // 11.002869
+  //   0x00007DF3, // 0.983978
+  //   0x000016D0, // 0.178223
+  //   0x3FFFF498, // -0.089111
+  //   0x00003EF9, // 0.491974
+  // },
+  // { // F10: Q15.15: Wall edge glitch check.
+  //   0x0001A576, // 3.292664
+  //   0x00057F23, // 10.993256
+  //   0x00007DF3, // 0.983978
+  //   0x000016D0, // 0.178223
+  //   0x3FFFF498, // -0.089111
+  //   0x00003EF9, // 0.491974
+  // },
+};
+
+
 // Testbench for main design:
 MAIN_TB       *TB;
 bool          gQuit = false;
@@ -275,6 +376,15 @@ void set_override_vectors() {
 }
 
 
+void activate_vectors_override() {
+  gOverrideVectors = 1;
+  printf("Vectors override turned ON\n");
+  get_override_vectors();
+  // Turn off all input locks EXCEPT map:
+  gLockInputs[LOCK_F] = gLockInputs[LOCK_B] = gLockInputs[LOCK_L] = gLockInputs[LOCK_R] = 0;
+}
+
+
 void process_sdl_events() {
   // Event used to receive window close, keyboard actions, etc:
   SDL_Event e;
@@ -284,7 +394,32 @@ void process_sdl_events() {
       // SDL quit event (e.g. close window)?
       gQuit = true;
     } else if (SDL_KEYDOWN == e.type) {
+      int fn_key = 0;
       switch (e.key.keysym.sym) {
+        case SDLK_F10:++fn_key;
+        case SDLK_F9: ++fn_key;
+        case SDLK_F8: ++fn_key;
+        case SDLK_F7: ++fn_key;
+        case SDLK_F6: ++fn_key;
+        case SDLK_F5: ++fn_key;
+        case SDLK_F4: ++fn_key;
+        case SDLK_F3: ++fn_key;
+        case SDLK_F2: ++fn_key;
+        case SDLK_F1: ++fn_key;
+          {
+            // Directly set override vectors...
+            printf("Loading state #%d\n", fn_key);
+            uint32_t* v = gTestVectors[fn_key-1];
+            TB->m_core->DESIGN->playerX = *(v++);
+            TB->m_core->DESIGN->playerY = *(v++);
+            TB->m_core->DESIGN->facingX = *(v++);
+            TB->m_core->DESIGN->facingY = *(v++);
+            TB->m_core->DESIGN->vplaneX = *(v++);
+            TB->m_core->DESIGN->vplaneY = *(v++);
+            // ...then activate vectors override (which will reload gOvers from what we just set above):
+            activate_vectors_override();
+            break;
+          }
         case SDLK_q:
         case SDLK_ESCAPE:
           // ESC or Q key pressed, for Quit
@@ -399,10 +534,7 @@ void process_sdl_events() {
             printf("Vectors override turned off\n");
           }
           else {
-            printf("Vectors override turned ON\n");
-            get_override_vectors();
-            // Turn off all input locks EXCEPT map:
-            gLockInputs[LOCK_F] = gLockInputs[LOCK_B] = gLockInputs[LOCK_L] = gLockInputs[LOCK_R] = 0;
+            activate_vectors_override();
           }
           break;
         // Turn off all input locks:

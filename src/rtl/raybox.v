@@ -67,22 +67,16 @@ module raybox(
     localparam `F vplaneYstart      = `realF( 0.0); // ...makes FOV 45deg. Too small, but makes maths easy for now.
 
 `ifdef DUMMY_MAP
-    //localparam `I playerXstartcell  = 1;
-    //localparam `I playerYstartcell  = 13;
     //SMELL: defines instead of params, to work around Quartus bug: https://community.intel.com/t5/Intel-Quartus-Prime-Software/BUG/td-p/1483047
     `define       playerXstartcell    1
     `define       playerYstartcell    13
 `else
-    //localparam `I playerXstartcell  = 8;
-    //localparam `I playerYstartcell  = 14;
     `define       playerXstartcell    8
     `define       playerYstartcell    14
 `endif
     // Player's full start position is in the middle of a cell:
-    //localparam playerXstartoffset   = 0.50;    // Should normally be 0.5, but for debugging might need to be other values.
-    //localparam playerYstartoffset   = 0.50;
     //SMELL: defines instead of params, to work around Quartus bug: https://community.intel.com/t5/Intel-Quartus-Prime-Software/BUG/td-p/1483047
-    `define       playerXstartoffset  0.5
+    `define       playerXstartoffset  0.5       // Should normally be 0.5, but for debugging might need to be other values.
     `define       playerYstartoffset  0.5
     localparam `F playerXstart      = `realF(`playerXstartcell+`playerXstartoffset);
     localparam `F playerYstart      = `realF(`playerYstartcell+`playerYstartoffset);
@@ -149,43 +143,39 @@ module raybox(
 
             vplaneX <= vplaneXstart;
             vplaneY <= vplaneYstart;
-        end else if (tick) begin
+        end else if (v < SCREEN_HEIGHT && write_new_position) begin
+            // Host wants to directly set new vectors:
+            //SMELL: This should be handled properly with a synchronised loading method,
+            // and consideration for crossing clock domains.
+            // In particular, do we just need to buffer write_new_position?
+            playerX <= new_playerX;
+            playerY <= new_playerY;
+            facingX <= new_facingX;
+            facingY <= new_facingY;
+            vplaneX <= new_vplaneX;
+            vplaneY <= new_vplaneY;
+        end else if (tick && !write_new_position) begin
             // Animation can happen here.
-            if (write_new_position) begin
-                // Host wants to directly set new vectors:
-                //SMELL: This should be handled properly with a synchronised loading method,
-                // and consideration for crossing clock domains.
-                playerX <= new_playerX;
-                playerY <= new_playerY;
-                facingX <= new_facingX;
-                facingY <= new_facingY;
-                vplaneX <= new_vplaneX;
-                vplaneY <= new_vplaneY;
-            end else begin
-                // Handle player motion:
-                //SMELL: This isn't properly implemented:
-                // - L/R should use vplane vector (which isn't a unit)
-                // - F/B should use facing vector.
-                // If we were to use a multiplier, we'd do something like this:
-                //      if (moveL) begin
-                //          playerX <= playerX - `FF(playerMove*vplaneX);
-                //          playerY <= playerY - `FF(playerMove*vplaneY);
-                //      end else ...
-                // We don't HAVE to use a multiplier, though, if we know things about the scale
-                // of playerMove.
-                if (moveL)
-                    playerX <= playerX - playerMove;
-                else if (moveR)
-                    playerX <= playerX + playerMove;
+            // Handle player motion:
+            //SMELL: This isn't properly implemented:
+            // - L/R should use vplane vector (which isn't a unit)
+            // - F/B should use facing vector.
+            // If we were to use a multiplier, we'd do something like this:
+            //      if (moveL) begin
+            //          playerX <= playerX - `FF(playerMove*vplaneX);
+            //          playerY <= playerY - `FF(playerMove*vplaneY);
+            //      end else ...
+            // We don't HAVE to use a multiplier, though, if we know things about the scale
+            // of playerMove.
+            if (moveL)
+                playerX <= playerX - playerMove;
+            else if (moveR)
+                playerX <= playerX + playerMove;
 
-                if (moveF)
-                    playerY <= playerY - playerMove;
-                else if (moveB)
-                    playerY <= playerY + playerMove;
-
-                //SMELL: Ideally *diagonal* motion should be a vector equal to playerMove,
-                // i.e. move by 1/sqrt(2) on both X and Y.
-            end
+            if (moveF)
+                playerY <= playerY - playerMove;
+            else if (moveB)
+                playerY <= playerY + playerMove;
         end
     end
     always @(negedge reset) begin

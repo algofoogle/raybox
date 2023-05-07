@@ -81,6 +81,9 @@ module tracer(
     localparam RCLEAR   = 8;
     localparam DEBUG    = 9;
 
+    // localparam STEPLIMIT= 91; // The maximum distance a *valid* trace step can be: ceil(sqrt(2)*MAP_WIDTH)
+    localparam STEPLIMIT= 2000; // The maximum distance a *valid* trace step can be: ceil(sqrt(2)*MAP_WIDTH)
+
     reg [3:0] state;
     reg hit;
     reg [9:0] col_counter;
@@ -102,8 +105,14 @@ module tracer(
 
     // trackXdist and trackYdist are not a vector; they're separate trackers
     // for distance travelled along X and Y gridlines:
-    reg `F      trackXdist;
-    reg `F      trackYdist;
+    //NOTE: These are defined as UNSIGNED because in some cases they may get such a big
+    // number added to them that they wrap around and appear negative, and this would
+    // otherwise break comparisons. I expect this to be OK because such a huge addend
+    // cannot exceed its normal positive range anyway, AND would only get added once
+    // to an existing non-negative number, which would cause it to stop accumulating
+    // without further wrapping beyond its possible unsigned range.
+    reg `UF      trackXdist;
+    reg `UF      trackYdist;
 
     //SMELL: Do these need to be signed? They should only ever be positive, anyway.
     // Get integer player position:
@@ -179,13 +188,15 @@ module tracer(
     // Output current column counter value:
     assign column = col_counter;
 
-    // Stop tracking an axis when saturated, or when map coordinates would wrap:
-    //SMELL: We could probably ignore satX and satY, because the other condition will always win...?
+    // Stop tracking an axis when a single step on it would exceed a reasonable maximum:
     //SMELL: *** IS A BETTER WAY *** to determine stop to look for mapX/Y hitting a map boundary?
     //SMELL: We really need to think about how this works in DDA, because just the right number
     // of bits will ensure we don't have a sign flip error that breaks the comparators in the DDA loop.
-    // wire stopX = satX || `FI(stepXdist) > 400;
-    // wire stopY = satY || `FI(stepYdist) > 400;
+    // wire stopX = `FI(stepXdist) > STEPLIMIT;
+    // wire stopY = `FI(stepYdist) > STEPLIMIT;
+    // wire needStepX = stopY || (!stopX && trackXdist < trackYdist);
+    
+    wire needStepX = trackXdist < trackYdist; //NOTE: UNSIGNED comparison per def'n of trackX/Ydist.
 
     //DEBUG: Used to count actual clock cycles it takes to trace a frame:
     integer trace_cycle_count;
@@ -245,7 +256,8 @@ module tracer(
                 STEP: begin
                     //SMELL: Can we explicitly set different states to match which trace/step we're doing?
                     // Might be easier to read than this muck.
-                    if (trackXdist < trackYdist) begin
+                    // if (satY || trackXdist < trackYdist) begin
+                    if (needStepX) begin
                         mapX <= rxi ? mapX+1'b1 : mapX-1'b1;
                         trackXdist <= trackXdist + stepXdist;
                         side <= 0;
