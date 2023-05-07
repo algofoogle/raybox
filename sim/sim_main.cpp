@@ -369,6 +369,22 @@ void process_sdl_events() {
             printf("Examine mode off\n");
           }
           break;
+        case SDLK_i:
+          // Inspect: Print out current vector data as C++ code:
+          printf("\n// Vectors inspection data:\n");
+          uint32_t v;
+          v=TB->m_core->DESIGN->playerX; printf("TB->m_core->DESIGN->playerX = 0x%08X; // %lf\n", v, fixed2double(v));
+          v=TB->m_core->DESIGN->playerY; printf("TB->m_core->DESIGN->playerY = 0x%08X; // %lf\n", v, fixed2double(v));
+          v=TB->m_core->DESIGN->facingX; printf("TB->m_core->DESIGN->facingX = 0x%08X; // %lf\n", v, fixed2double(v));
+          v=TB->m_core->DESIGN->facingY; printf("TB->m_core->DESIGN->facingY = 0x%08X; // %lf\n", v, fixed2double(v));
+          v=TB->m_core->DESIGN->vplaneX; printf("TB->m_core->DESIGN->vplaneX = 0x%08X; // %lf\n", v, fixed2double(v));
+          v=TB->m_core->DESIGN->vplaneY; printf("TB->m_core->DESIGN->vplaneY = 0x%08X; // %lf\n", v, fixed2double(v));
+          printf("\n");
+          if (KMOD_SHIFT & e.key.keysym.mod) {
+            // Shift key held, so pause too.
+            TB->pause(true);
+          }
+          break;
         case SDLK_s: // Step-examine, basically the same as hitting X then P while already paused.
           TB->examine_mode = true;
           TB->examine_condition_met = false;

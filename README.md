@@ -19,8 +19,11 @@
 
 # Raybox
 
-This isn't anything yet, but I hope it will be a Verilog-based ray casting VGA
-renderer (i.e. "Wolf3D-style" game) soon.
+This is the stat of a Verilog-based ray casting VGA renderer (i.e. "Wolf3D-style" game).
+
+![Animated GIF showing Raybox running on FPGA](doc/raybox-video-1.gif)
+
+This crappy animated GIF doesn't do it justice. Running on the FPGA, it is super smooth and clean.
 
 # License
 
@@ -58,14 +61,16 @@ make clean sim_seed     # ...predictable random values based on SEED (set in Mak
 make clean sim_random   # ...unpredictable random values each time. 
 ```
 
-**Reset** is not asserted automatically at the start of simulation.
+**Reset** is not asserted automatically at the start of simulation, so you'd probably
+want to hold down the `R` key for a few frames.
 
-## Virtual VGA display
+You should then get this:
 
 ![Verilator running Raybox VGA simulation](./doc/verilator-raybox.png)
 
 **NOTES** about what you see in the screenshot above:
-*   The background is grey and not black because the region that got rendered
+*   This is tinted to be brighter than it might actually appear on a VGA display.
+    That's because the region that gets rendered
     between SDL refreshes gets its lower bits set to visually show what's being updated
     each time. To toggle this, use the <kbd>H</kbd> key.
 *   Regions outside the main display area are typically called "overscan" and allow us
@@ -77,6 +82,11 @@ make clean sim_random   # ...unpredictable random values each time.
     Anything that DOES make it into this region should decay back to black after a short while.
 *   Faint horizontal and vertical lines are showing what a VGA monitor would probably sense
     as the actual exact visible area of the display.
+*   The white squares in the top-right corner visualise the internal binary state of key
+    position/direction vectors.
+
+**Don't** expect this to run very fast in simulation. On a Core i7-12700H it runs at about
+45% of realtime. On a Core i7-7700 it runs at about 10% of realtime.
 
 
 ## Simulator Hotkeys
@@ -93,6 +103,9 @@ make clean sim_random   # ...unpredictable random values each time.
 | X             | Turn on eXamine mode: Pause simulator if last frame had any tone generation |
 | S             | Step-examine: Unpause, but with examine mode on again |
 | F             | NOT IMPLEMENTED: Step by 1 full frame |
+| I             | Print out a snapshot of the design's current internal vector values |
+| Shift + I     | As above, but pauses immediately upon the snapshot printout |
+| O (not zero)  | Toggle Override Vectors mode (see below) |
 | + (Keypad)    | Increase refresh period by 1000 cycles |
 | - (Keypad)    | Decrease refresh period by 1000 cycles |
 | 1             | Refresh after every pixel (VERY slow) |
@@ -108,6 +121,14 @@ make clean sim_random   # ...unpredictable random values each time.
 1.  Hit X to turn on examine mode.
 2.  As soon as a frame completes that included the speaker being turned on, go into PAUSE.
 3.  You can either just resume with <kbd>Space</kbd>, or step through each subsequent examine trigger with S.
+
+**Override Vectors mode** while active will allow the simulator to decide directly what the
+playerX/Y, facingX/Y, and vplaneX/Y vectors are, i.e. for each refresh it calculates values
+for these and writes them directly to the design, hence becoming responsible for both motion
+and rotation. This allows for potentially more sophisticated control instead of just relying
+on whatever motion control and animation the design itself can do. **NOTE:** While this mode
+is active, the function of the arrow keys changes from what is documented below; they instead
+become rotation controls.
 
 **Signal controls**: Key state directly drives a signal of the device being simulated:
 

@@ -10,7 +10,7 @@ See also: lzc_c and _d.
 ***/
 
 `undef SZ
-`define SZ  24  //SMELL: This should match WIDTH.
+`define SZ  24  //SMELL: This should match WIDTH, i.e. `Qm+`Qn
 
 module lzc_b #(
 /* verilator lint_off WIDTH */
