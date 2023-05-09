@@ -379,8 +379,10 @@ void recalc_override_vectors(const Uint8* k, int mouseX, int mouseY) {
   const double playerMove         = playerWalk;
   double m = k[SDL_SCANCODE_LSHIFT] ? playerRun : playerMove;
   m *= gMotionMultiplier;
-  if (k[SDL_SCANCODE_LEFT])   rotate_override_vectors( key_rotate_speed);
-  if (k[SDL_SCANCODE_RIGHT])  rotate_override_vectors(-key_rotate_speed);
+  double r = key_rotate_speed;
+  r *= gMotionMultiplier;
+  if (k[SDL_SCANCODE_LEFT])   rotate_override_vectors( r);
+  if (k[SDL_SCANCODE_RIGHT])  rotate_override_vectors(-r);
   if (mouseX != 0)            rotate_override_vectors(-mouse_rotate_speed * double(mouseX));
   if (k[SDL_SCANCODE_W]) { gOvers.px += m * gOvers.fx;   gOvers.py += m * gOvers.fy; }
   if (k[SDL_SCANCODE_S]) { gOvers.px -= m * gOvers.fx;   gOvers.py -= m * gOvers.fy; }

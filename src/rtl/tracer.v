@@ -59,6 +59,7 @@ module tracer(
     output      [9:0]   column,             // The column we'll write to in the trace_buffer.
     output reg          side,               // The side data we'll write for the respective column.
     output      [7:0]   height,             // The height data we'll write for the column. NOTE: Make sure we only output 1..240
+    output      [5:0]   tex,                // X coordinate (column) of wall's texture where the hit occurred.
 
     // Map ROM access:
     output      [3:0]   map_col,
@@ -80,9 +81,6 @@ module tracer(
     localparam LCLEAR   = 7;
     localparam RCLEAR   = 8;
     localparam DEBUG    = 9;
-
-    // localparam STEPLIMIT= 91; // The maximum distance a *valid* trace step can be: ceil(sqrt(2)*MAP_WIDTH)
-    localparam STEPLIMIT= 2000; // The maximum distance a *valid* trace step can be: ceil(sqrt(2)*MAP_WIDTH)
 
     reg [3:0] state;
     reg hit;
@@ -113,6 +111,14 @@ module tracer(
     // without further wrapping beyond its possible unsigned range.
     reg `UF      trackXdist;
     reg `UF      trackYdist;
+
+    // Get fractional part [0,1) of where the ray hits the wall:
+    wire `F2 rayFullHitX = visualWallDist*rayDirX;
+    wire `F2 rayFullHitY = visualWallDist*rayDirY;
+    wire `F wallX = side
+        ? playerX + `FF(rayFullHitX)
+        : playerY + `FF(rayFullHitY);
+    assign tex = wallX[-1:-6];
 
     //SMELL: Do these need to be signed? They should only ever be positive, anyway.
     // Get integer player position:
@@ -188,14 +194,6 @@ module tracer(
     // Output current column counter value:
     assign column = col_counter;
 
-    // Stop tracking an axis when a single step on it would exceed a reasonable maximum:
-    //SMELL: *** IS A BETTER WAY *** to determine stop to look for mapX/Y hitting a map boundary?
-    //SMELL: We really need to think about how this works in DDA, because just the right number
-    // of bits will ensure we don't have a sign flip error that breaks the comparators in the DDA loop.
-    // wire stopX = `FI(stepXdist) > STEPLIMIT;
-    // wire stopY = `FI(stepYdist) > STEPLIMIT;
-    // wire needStepX = stopY || (!stopX && trackXdist < trackYdist);
-    
     wire needStepX = trackXdist < trackYdist; //NOTE: UNSIGNED comparison per def'n of trackX/Ydist.
 
     //DEBUG: Used to count actual clock cycles it takes to trace a frame:

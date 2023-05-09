@@ -217,6 +217,7 @@ module raybox(
         .column (buffer_column),
         .side   (wall_side),
         .height (wall_height[7:0]),
+        .tex    (wall_tex),
         .cs     (1),    //SMELL: Redundant?
         .we     (trace_we),
         .oe     (!trace_we)
@@ -226,12 +227,14 @@ module raybox(
     wire [9:0]  buffer_column = visible ? h : tracer_addr;
     wire [9:0]  tracer_addr;    // Driven by tracer directly...
     wire        tracer_side;    // ...
-    wire [7:0]  tracer_height;  // .
+    wire [7:0]  tracer_height;  // ...
+    wire [5:0]  tracer_tex;     // .
 
     // During trace_buffer write, we drive wall_height directly.
     // Otherwise, set it to Z because trace_buffer drives it:
     wire        wall_side    = trace_we ? tracer_side            :  1'bz;
     wire [9:0]  wall_height  = trace_we ? {2'b00,tracer_height}  : 10'bz; //SMELL: [9:0], only to avoid in_wall logic warnings.
+    wire [5:0]  wall_tex     = trace_we ? tracer_tex             :  6'bz;
 
     wire [3:0] map_row, map_col;
     wire [1:0] map_val;
@@ -254,7 +257,8 @@ module raybox(
         .store  (trace_we),
         .column (tracer_addr),
         .side   (tracer_side),
-        .height (tracer_height)
+        .height (tracer_height),
+        .tex    (tracer_tex)
     );
 
     // Map ROM, both for tracing, and for optional show_map overlay:
@@ -336,8 +340,10 @@ module raybox(
         dead_column     ?   2'b11 :             // 0-height columns are filled with magenta.
         in_wall         ?
                             wall_side ?
-                                2'b11 :         // Bright wall side.
-                                2'b10 :         // Dark wall side.
+                                {wall_tex[2], 1'b1} :         // Bright wall side.
+                                {wall_tex[2], 1'b0} :         // Dark wall side.
+                                // 2'b11 :         // Bright wall side.
+                                // 2'b10 :         // Dark wall side.
                             background;         // Ceiling/floor background.
 
 endmodule
