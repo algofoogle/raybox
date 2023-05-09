@@ -16,7 +16,7 @@
  */
 
 #include <stdio.h>
-#include <err.h>
+// #include <err.h>
 #include <iostream>
 #include <string>
 #include <filesystem> // For std::filesystem::absolute() (which is only used if we have C++17)
@@ -97,6 +97,22 @@ using namespace std;
 
 // The MAIN_TB class that includes specifics about running our design in simulation:
 #include "main_tb.h"
+
+#ifdef WINDOWS
+//SMELL: For some reason, when building this under Windows, it stops building as a console command
+// and instead builds as a Windows app requiring WinMain. Possibly something to do with Verilator
+// or SDL2 under windows. I'm not sure yet. Anyway, this is a temporary workaround. The Makefile
+// will include `-CFLAGS -DWINDOWS`, when required, in order to activate this code:
+#include <windows.h>
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
+{
+  // char* nothing = "nothing";
+  // return main(1, &nothing);
+  printf("DEBUG: WinMain command-line: '%s'\n", lpCmdLine);
+  return main(__argc, __argv); // See: https://stackoverflow.com/a/40107581
+  return 0;
+}
+#endif // WINDOWS
 
 
 uint32_t gTestVectors[10][6] {
@@ -213,6 +229,13 @@ bool          gSyncFrame = false;
 bool          gHighlight = true;
 bool          gGuides = false;
 bool          gOverrideVectors = false;
+int           gMouseX, gMouseY;
+double        gMotionMultiplier = 1.0;
+#ifdef WINDOWS
+bool          gMouseCapture = true;
+#else
+bool          gMouseCapture = false; // Not on by default in Linux, because of possible mouse relative motion weirdness.
+#endif
 
 typedef struct {
   uint32_t px, py, fx, fy, vx, vy;
@@ -346,16 +369,19 @@ void rotate_override_vectors(double a) {
 }
 
 
-void recalc_override_vectors(const Uint8* k) {
-  const double move_quantum = pow(2.0, -9.0); // This borrows from `playerMove` in the design, and in Q12.12 it is the raw value: 8
-  const double playerCrawl  = move_quantum *  4.0;
-  const double playerWalk   = move_quantum * 10.0; // Should be 0.01953125
-  const double playerRun    = move_quantum * 18.0;
-  const double playerMove   = playerWalk;
-  double m = playerMove;
-  if (k[SDL_SCANCODE_LSHIFT]) m = playerRun;
-  if (k[SDL_SCANCODE_LEFT])   rotate_override_vectors( 0.01);
-  if (k[SDL_SCANCODE_RIGHT])  rotate_override_vectors(-0.01);
+void recalc_override_vectors(const Uint8* k, int mouseX, int mouseY) {
+  const double key_rotate_speed   = 0.01;
+  const double mouse_rotate_speed = 0.001;
+  const double move_quantum       = pow(2.0, -9.0); // This borrows from `playerMove` in the design, and in Q12.12 it is the raw value: 8
+  const double playerCrawl        = move_quantum *  4.0;
+  const double playerWalk         = move_quantum * 10.0; // Should be 0.01953125
+  const double playerRun          = move_quantum * 18.0;
+  const double playerMove         = playerWalk;
+  double m = k[SDL_SCANCODE_LSHIFT] ? playerRun : playerMove;
+  m *= gMotionMultiplier;
+  if (k[SDL_SCANCODE_LEFT])   rotate_override_vectors( key_rotate_speed);
+  if (k[SDL_SCANCODE_RIGHT])  rotate_override_vectors(-key_rotate_speed);
+  if (mouseX != 0)            rotate_override_vectors(-mouse_rotate_speed * double(mouseX));
   if (k[SDL_SCANCODE_W]) { gOvers.px += m * gOvers.fx;   gOvers.py += m * gOvers.fy; }
   if (k[SDL_SCANCODE_S]) { gOvers.px -= m * gOvers.fx;   gOvers.py -= m * gOvers.fy; }
   if (k[SDL_SCANCODE_A]) { gOvers.px -= m * gOvers.vx;   gOvers.py -= m * gOvers.vy; }
@@ -385,6 +411,34 @@ void activate_vectors_override() {
 }
 
 
+void toggle_mouse_capture(bool force_on = false) {
+  gMouseCapture = force_on ? true : !gMouseCapture;
+  if (gMouseCapture) {
+    int r = SDL_SetRelativeMouseMode(SDL_TRUE);
+    if (r) {
+      printf("SDL_SetRelativeMouseMode(SDL_TRUE) failed (%d): %s\n", r, SDL_GetError());
+    } else {
+      printf("Mouse captured.\n");
+      gMouseX = 0;
+      gMouseY = 0;
+    }
+  } else {
+    int r = SDL_SetRelativeMouseMode(SDL_FALSE);
+    if (r) {
+      printf("SDL_SetRelativeMouseMode(SDL_FALSE) failed (%d): %s\n", r, SDL_GetError());
+    } else {
+      printf("Mouse released.\n");
+    }
+  }
+}
+
+
+void scale_motion_multiplier(double s) {
+  gMotionMultiplier *= s;
+  printf("Motion multiplier is now: %lf\n", gMotionMultiplier);
+}
+
+
 void process_sdl_events() {
   // Event used to receive window close, keyboard actions, etc:
   SDL_Event e;
@@ -393,9 +447,17 @@ void process_sdl_events() {
     if (SDL_QUIT == e.type) {
       // SDL quit event (e.g. close window)?
       gQuit = true;
+    // } else if (SDL_MOUSEMOTION == e.type) {
+    //   int x = e.motion.xrel;
+    //   int y = e.motion.yrel;
+    //   printf("\t\t\t\t\t\t\t\t\t\t\t\t\tMouse motion: %d, %d\n", x, y);
     } else if (SDL_KEYDOWN == e.type) {
       int fn_key = 0;
       switch (e.key.keysym.sym) {
+        case SDLK_F12:
+            // Toggle mouse capture.
+            toggle_mouse_capture();
+            break;
         case SDLK_F10:++fn_key;
         case SDLK_F9: ++fn_key;
         case SDLK_F8: ++fn_key;
@@ -504,6 +566,12 @@ void process_sdl_events() {
             printf("Examine mode off\n");
           }
           break;
+        case SDLK_PAGEDOWN:
+          scale_motion_multiplier(0.909091); // Deduct 10%
+          break;
+        case SDLK_PAGEUP:
+          scale_motion_multiplier(1.1); // Add 10%
+          break;
         case SDLK_i:
           // Inspect: Print out current vector data as C++ code:
           printf("\n// Vectors inspection data:\n");
@@ -579,11 +647,23 @@ void handle_control_inputs(bool prepare) {
     TB->m_core->moveR     = 0;
   }
   else {
+
+    int mouseX, mouseY;
+    if (gMouseCapture) {
+      uint32_t buttons = SDL_GetRelativeMouseState(&mouseX, &mouseY);
+      gMouseX += mouseX;
+      gMouseY += mouseY;
+      // printf("\t\t\t\t\t\t\t\t\t\tMouse motion: %6d, %6d\tGlobal pos: %7d, %7d\n", mouseX, mouseY, gMouseX, gMouseY);
+    } else {
+      mouseX = 0;
+      mouseY = 0;
+    }
+
     // ACTIVE mode: Read the momentary state of all keyboard keys, and add them via `|=` to whatever is already asserted:
     auto keystate = SDL_GetKeyboardState(NULL);
 
     if (gOverrideVectors) {
-      recalc_override_vectors(keystate);
+      recalc_override_vectors(keystate, mouseX, mouseY);
       set_override_vectors();
       TB->m_core->write_new_position = 1;
     } else {
@@ -688,8 +768,24 @@ void overlay_display_area_frame(uint8_t *fb, int h_shift = 0, int v_shift = 0) {
         fb[(HDA/2+h_shift+y*WINDOW_WIDTH)*4 + 1] |= 0b0110'0000;
         fb[(HDA/2+h_shift+y*WINDOW_WIDTH)*4 + 2] |= 0b0110'0000;
     }
-    // Overlay camera orientation:
-
+    // Mouse crosshairs:
+    // X axis, vertical line:
+    int mx = gMouseX + HDA/2;
+    int my = gMouseY + VDA/2;
+    if (mx >= 0 && mx < HDA) {
+      for (int y = 0; y < WINDOW_HEIGHT; ++y) {
+          fb[(mx+h_shift+y*WINDOW_WIDTH)*4 + 0] |= 0b0110'0000;
+          fb[(mx+h_shift+y*WINDOW_WIDTH)*4 + 1] |= 0b0110'0000;
+          fb[(mx+h_shift+y*WINDOW_WIDTH)*4 + 2] |= 0b0110'0000;
+      }
+    }
+    if (my >= 0 && my < VDA) {
+      for (int x = 0; x < WINDOW_WIDTH; ++x) {
+          fb[(x+(my+v_shift)*WINDOW_WIDTH)*4 + 0] |= 0b0110'0000;
+          fb[(x+(my+v_shift)*WINDOW_WIDTH)*4 + 1] |= 0b0110'0000;
+          fb[(x+(my+v_shift)*WINDOW_WIDTH)*4 + 2] |= 0b0110'0000;
+      }
+    }
   }
 }
 
@@ -745,6 +841,11 @@ void render_text(SDL_Renderer* renderer, TTF_Font* font, int x, int y, string s)
 
 int main(int argc, char **argv) {
 
+  printf("DEBUG: main() command-line arguments:\n");
+  for (int i = 0; i < argc; ++i) {
+    printf("%d: [%s]\n", i, argv[i]);
+  }
+
   Verilated::commandArgs(argc, argv);
   // Verilated::traceEverOn(true);
   
@@ -774,6 +875,8 @@ int main(int argc, char **argv) {
           -1,
           SDL_RENDERER_ACCELERATED
       );
+
+  toggle_mouse_capture(true);
 
   TTF_Init();
   TTF_Font *font = TTF_OpenFont(FONT_FILE, 12);
@@ -982,6 +1085,7 @@ int main(int argc, char **argv) {
     if (font) {
       SDL_Rect rect;
       SDL_Texture *text_texture = NULL;
+      // Show the state of controls that can be toggled:
       string s = "[";
       s += TB->paused           ? "P" : ".";
       s += gGuides              ? "G" : ".";
@@ -994,12 +1098,9 @@ int main(int argc, char **argv) {
       s += gLockInputs[LOCK_F]  ? "^" : ".";
       s += gLockInputs[LOCK_B]  ? "v" : ".";
       s += gLockInputs[LOCK_R]  ? ">" : ".";
+      s += gMouseCapture        ? "*" : ".";
 #ifdef INSPECT_INTERNAL
       s += "] ";
-      // s += " h="         + to_string(TB->m_core->DESIGN->h);
-      // s += " v="         + to_string(TB->m_core->DESIGN->v);
-      // s += " v_shift="   + to_string(v_shift);
-      // s += " h_adjust="  + to_string(h_adjust);
       // Player position:
       s += " pX,Y=("
         + to_string(fixed2double(TB->m_core->DESIGN->playerX)) + ", "

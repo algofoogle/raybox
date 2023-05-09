@@ -40,14 +40,58 @@ Key parts:
 
 # Visual simulation with Verilator
 
+## Setting up under Windows
+
+**These instructions are tested on Windows Home 11 64-bit,** version 22H2 build 22621.1555.
+The instructions are based on information from [here](https://code.visualstudio.com/docs/cpp/config-mingw)
+and [here](https://spinalhdl.github.io/SpinalDoc-RTD/dev/SpinalHDL/Simulation/install/Verilator.html#windows).
+
+1.  Install VSCode.
+2.  In VSCode, install the C/C++ extension, the C/C++ Extension Pack, and the Makefile Tools extension.
+3.  Install [MSYS2](https://www.msys2.org/)
+    1.  Download and run the installer, typically named something like `msys2-x86_64-20230318.exe`.
+    2.  I accepted the defaults, which included the path `C:\msys64`.
+    3.  Assuming you leave "Run MSYS2 now" ticked, when you click "Finish" it should pop up a terminal
+        (which is `C:\msys64\usr\bin\mintty.exe` for me).
+    4.  This should include the `pacman` package manager, and you can run `pacman --version` to verify.
+5.  In the MSYS2 terminal (i.e. mintty), sync/update/upgrade packages with: `pacman -Syuu`
+    *   Let it close the terminal when it wants to.
+6.  Add these to your Windows PATH: `C:\msys64\usr\bin` and `C:\msys64\mingw64\bin` (which will be populated with installed files later).
+7.  Run `mintty` (either via Windows "Run" or a fresh command prompt that has loaded the new PATH). Carry on in the terminal...
+8.  Run `pacman -Syuu` again.
+9.  Install mingw64 toolchain stuff: `pacman -S --needed base-devel mingw-w64-x86_64-toolchain`
+    *   Hit <kbd>ENTER</kbd> to select all.
+10. The installed packages should allow us to run `gcc --version` and `make --version`, *including* (I think) from both mintty and the Windows Command prompt.
+11. Install Verilator. There are a few different ways to do this. You *could* [build the latest version from source](https://gist.github.com/sgherbst/036456f807dc8aa84ffb2493d1536afd) but I chose to do the following to stick with something close to 4.227 (in this case 4.228):
+    1.  `pacman -U https://repo.msys2.org/mingw/x86_64/mingw-w64-x86_64-verilator-4.228-1-any.pkg.tar.zst`
+    2.  Run `verilator --version` to hopefully reveal 4.228
+12. Install SDL2 stuff:
+    ```bash
+    pacman -S git mingw64/mingw-w64-x86_64-SDL2 mingw64/mingw-w64-x86_64-SDL2_image mingw64/mingw-w64-x86_64-SDL2_ttf
+    ```
+
+When opening this project in VSCode, it should hopefully now be possible to open the "Makefile"
+tool button (not the file) in the left-hand toolbox, click "Build target:" and select (say) `clean_sim`.
+After that, click the play/run button to do the build and see it in action. Note that I've found it
+to be quite slow natively under Windows, for some reason (maybe because of Verilator or how SDL2
+is working), when running it on the same machine inside a Linux VM is about 3 times faster.
+
+
+## Setting up under Linux
+
+**These instructions are tested with Ubuntu 20.04 LTS,** but are not yet complete because I'm using
+a VM that came preloaded with the build tools and Verilator v4.227.
+
 Make sure SDL2 dev packages are installed:
 ```bash
 sudo apt-get update
 sudo apt install libsdl2-dev libsdl2-ttf-dev
 ```
 
-Then hopefully you can run the following and it will build and run the simulator,
-popping up a window that shows the game in action.
+## Building and running
+
+After setup above has been followed, hopefully you can run the following and it
+will build and run the simulator, popping up a window that shows the game in action.
 ```bash
 make clean sim
 ```
@@ -116,9 +160,23 @@ You should then get this:
 | 5             | Refresh exactly on every frame |
 | 6             | Refresh exactly every 3 frames |
 | 9             | Refresh after every 100 pixels (better for observing repaint within frames) |
+| F12           | Toggle mouse capture |
+| Page Up       | Increase movement speed multiplier (initially 1.0) by 10% |
+| Page Down     | Decrease movement speed multiplier by 10% |
 
-**Examine mode** is currently programmed to help observe what happens with tone generation:
-1.  Hit X to turn on examine mode.
+**Mouse capture** is on by default in Windows, and off by default in Linux. When ON,
+the mouse pointer is hidden and mouse events are all sent to the sim window. When OFF,
+the mouse pointer is released. If mouse capture and Override Vectors mode are both on
+at the same time, the mouse left/right movement will rotate the view (like any modern FPS).
+**The reason mouse capture is NOT on by default in Linux** is that if you are running the sim
+inside a VM, you *might* get completely wacky mouse movements (probably due to a combination
+of an SDL2 bug and the "tablet style" mouse movements that VirtualBox sends to the
+Linux desktop).
+
+**Examine mode** is currently programmed to help observe what happens with tone generation,
+though this is as yet unused in this design. Use this as an example for other testing you
+want to do. The current implementation does the following:
+1.  You can hit X to turn on examine mode.
 2.  As soon as a frame completes that included the speaker being turned on, go into PAUSE.
 3.  You can either just resume with <kbd>Space</kbd>, or step through each subsequent examine trigger with S.
 
@@ -142,10 +200,35 @@ become rotation controls.
 | End           | Turn off all locks |
 | SHIFT + Arrows| Send a momentary directional input (i.e. single-step) |
 
-**NOTE:** "SHIFT + Arrows" will really only work as you expect in full-frame fresh mode
+**NOTE:** "SHIFT + Arrows" will really only work as you expect in full-frame refresh mode
 (i.e. mode 5) because it asserts the signal only once within the current refresh range,
 and so this is likely to miss one of the periods when the design would actually check
 for the signal (i.e. right at the start of the frame).
+
+**NOTE:** In Override Vectors mode, holding the left shift key while using WASD keys will
+use run speed (18) instead of walk speed (10).
+
+## Toggled mode information in the sim window
+
+In the bottom-left corner of the sim window, there is an indicator to show the current
+status of the various modes that can be toggled. If any given mode is off, a dot is displayed.
+Otherwise, a corresopnding letter or symbol is shown:
+
+```
+Symbol          Mode                Hotkey
+[P...........]  Paused              P
+[.G..........]  Guides              G
+[..H.........]  Highlight           H
+[...V........]  VSYNC logging       V
+[....O.......]  Override Vectors    O
+[.....X......]  eXamine             X
+[......m.....]  Lock map            Insert
+[.......<....]  Lock left           Arrow Left
+[........^...]  Lock up             Arrow Up
+[.........v..]  Lock down           Arrow Down
+[..........>.]  Lock right          Arrow Right
+[...........*]  Mouse capture       F12
+```
 
 
 # Contents

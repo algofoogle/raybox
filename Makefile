@@ -35,16 +35,24 @@ TOP = raybox
 
 
 # Stuff for simulation:
+#CFLAGS = -CFLAGS -municode
+#CFLAGS := -CFLAGS -DINSPECT_INTERNAL
 SIM_LDFLAGS = -lSDL2 -lSDL2_ttf
-SIM_EXE = sim/obj_dir/V$(TOP)
+ifeq ($(OS),Windows_NT)
+	SIM_EXE = sim/obj_dir/V$(TOP).exe
+else
+	SIM_EXE = sim/obj_dir/V$(TOP)
+endif
 XDEFINES := $(DEF:%=+define+%)
 # A fixed seed value for sim_seed:
 SEED ?= 22860
-# A random seed value for im_random:
-RSEED := $(shell bash -c 'echo $$RANDOM')
-
-#CFLAGS := -CFLAGS -DINSPECT_INTERNAL
-
+ifeq ($(OS),Windows_NT)
+	CFLAGS := -CFLAGS -DWINDOWS
+	RSEED := $(shell ./winrand.bat)
+else
+	RSEED := $(shell bash -c 'echo $$RANDOM')
+endif
+#NOTE: RSEED is a random seed value for sim_random.
 
 # COCOTB variables:
 export COCOTB_REDUCED_LOG_FMT=1
@@ -73,6 +81,7 @@ sim_seed: $(SIM_EXE)
 
 # Build main simulation exe:
 $(SIM_EXE): $(MAIN_VSOURCES) sim/sim_main.cpp sim/main_tb.h sim/testbench.h
+	echo $(RSEED)
 	verilator \
 		--Mdir sim/obj_dir \
 		-Isrc/rtl \
@@ -90,7 +99,21 @@ clean:
 	rm -rf sim/obj_dir
 	rm -rf test/__pycache__
 
+clean_build: clean $(SIM_EXE)
+
+# For Linux:
+raybox_sim_debug_target: clean_build $(SIM_EXE)
+	cp $(SIM_EXE) $@
+
+# For Windows:
+raybox_sim_debug_target.exe: clean_build $(SIM_EXE)
+	cp $(SIM_EXE) $@
+
+clean_sim: clean sim
+
+clean_sim_random: clean sim_random
+
 # This tells make that 'test' and 'clean' are themselves not artefacts to make,
 # but rather tasks to always run:
-.PHONY: test clean sim sim_ones sim_random sim_seed show_results
+.PHONY: test clean sim sim_ones sim_random sim_seed show_results clean_sim clean_sim_random clean_build
 

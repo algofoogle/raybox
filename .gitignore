@@ -11,3 +11,6 @@ results/*
 __pycache__
 .vscode
 *.bak
+raybox_sim_debug_target
+raybox_sim_debug_target.exe
+JUNK
