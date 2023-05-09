@@ -411,8 +411,12 @@ void activate_vectors_override() {
 }
 
 
-void toggle_mouse_capture(bool force_on = false) {
-  gMouseCapture = force_on ? true : !gMouseCapture;
+void toggle_mouse_capture(bool force = false, bool force_to = false) {
+  if (!force) {
+    gMouseCapture = !gMouseCapture;
+  } else {
+    gMouseCapture = force_to;
+  }
   if (gMouseCapture) {
     int r = SDL_SetRelativeMouseMode(SDL_TRUE);
     if (r) {
@@ -876,7 +880,7 @@ int main(int argc, char **argv) {
           SDL_RENDERER_ACCELERATED
       );
 
-  toggle_mouse_capture(true);
+  toggle_mouse_capture(true, gMouseCapture); // Dummy "toggle" to just set current mode, in order to print it.
 
   TTF_Init();
   TTF_Font *font = TTF_OpenFont(FONT_FILE, 12);
