@@ -19,6 +19,7 @@
 
 `define DUMMY_MAP       // If defined, map is made by combo logic instead of ROM.
 `define ENABLE_DEBUG    // If defined, extra logic exists that reacts to the `show_debug` signal.
+// `define DEBUG_X 320
 
 `include "fixed_point_params.v"
 
@@ -52,7 +53,6 @@ module raybox(
     output          speaker
 );
 
-    //localparam DEBUG_X          = 300;  // Column to highlight.
     localparam DEBUG_SCALE          = 3;                        // Power of 2 scaling for debug overlay.
 
     localparam SCREEN_HEIGHT        = 480;
@@ -217,7 +217,7 @@ module raybox(
         .column (buffer_column),
         .side   (wall_side),
         .height (wall_height[7:0]),
-        .tex    (wall_tex),
+        .tex    (wall_texX),
         .cs     (1),    //SMELL: Redundant?
         .we     (trace_we),
         .oe     (!trace_we)
@@ -228,13 +228,39 @@ module raybox(
     wire [9:0]  tracer_addr;    // Driven by tracer directly...
     wire        tracer_side;    // ...
     wire [7:0]  tracer_height;  // ...
-    wire [5:0]  tracer_tex;     // .
+    wire [5:0]  tracer_texX;    // .
 
     // During trace_buffer write, we drive wall_height directly.
     // Otherwise, set it to Z because trace_buffer drives it:
-    wire        wall_side    = trace_we ? tracer_side            :  1'bz;
-    wire [9:0]  wall_height  = trace_we ? {2'b00,tracer_height}  : 10'bz; //SMELL: [9:0], only to avoid in_wall logic warnings.
-    wire [5:0]  wall_tex     = trace_we ? tracer_tex             :  6'bz;
+    wire        wall_side   = trace_we ? tracer_side            :  1'bz;
+    wire [9:0]  wall_height = trace_we ? {2'b00,tracer_height}  : 10'bz; //SMELL: [9:0], only to avoid in_wall logic warnings.
+    wire [5:0]  wall_texX   = trace_we ? tracer_texX            :  6'bz;
+    // Work out the texture Y offset (in range 0..63) by using how far v is through wall_height:
+/* verilator lint_off WIDTH */
+    wire `F     yscale = `intF(64) / (wall_height<<1);
+    //NOTE: for yscale, imagine it is now 0..511, and we already know its reciprocal (distance?) via the tracer.
+    // Could we then just store the distance value in the trace buffer, reciprocate in THIS module to get the wall_height,
+    // and shift it by 6 or 7 bits?
+    // Think of it this way, based on what we have right now:
+    //      heightScale = 1 / visualWallDist
+    //      wall_height = heightScale * 256     (or <<8)
+    //      yscale = 64 / wall_height*2         (or <<1)
+    // Conversely:
+    //      yscale = 64 / (heightScale*256)
+    // =>   yscale = 64 / ((heightScale*256)*2)
+    // =>   yscale = 64 / (((1/visualWallDist)*256)*2)
+    // =>   yscale = 64 / (512/visualWallDist)
+    // =>   yscale = visualWallDist / (512/64)
+    // =>   yscale = visualWallDist / 8
+    // =>   yscale = visualWallDist >> 3
+    //NOW: Is there ANOTHER to think of this that simplifies vd*yscale?
+    // For instance:
+    //      wtyf = (v-240+wall_height) * (64/wall_height*2)
+    // =>   wtyf = ...
+    wire [9:0]  vd = v - (HALF_HEIGHT-wall_height);
+    wire `F2    wtyf = `IF(vd) * yscale;
+    wire [5:0]  wall_texY = wtyf[5:0];
+/* verilator lint_on WIDTH */
 
     wire [3:0] map_row, map_col;
     wire [1:0] map_val;
@@ -258,7 +284,7 @@ module raybox(
         .column (tracer_addr),
         .side   (tracer_side),
         .height (tracer_height),
-        .tex    (tracer_tex)
+        .tex    (tracer_texX)
     );
 
     // Map ROM, both for tracing, and for optional show_map overlay:
@@ -288,6 +314,34 @@ module raybox(
     wire        in_player_pixel = in_player_cell
                                     && (playerX[-1:-MAP_SCALE]==h[MAP_SCALE-1:0])
                                     && (playerY[-1:-MAP_SCALE]==v[MAP_SCALE-1:0]);
+`ifdef DEBUG_X
+    always @(posedge clk) begin
+        if (h == `DEBUG_X && v==0) begin
+            $display("\t\t\t\t\t\t\t\t\t\tWALL HEIGHT: %d  YSCALE: %b %f", wall_height, yscale, `Freal(yscale));
+        end
+    end
+`endif
+
+    wire [1:0]  wall_r;
+    wire [1:0]  wall_g;
+    wire [1:0]  wall_b;
+
+    texture_rom wall_textures(
+        .side(wall_side),
+        .col(wall_texX),
+        .row(wall_texY),
+        .val( {wall_r, wall_g, wall_b} )
+    );
+    
+    // wire [1:0]  wall_r = 0;
+    // wire [1:0]  wall_g =
+    //     wall_side ? {~wall_texX[2]^wall_texY[2], 1'b1} :  // Bright.
+    //                 {~wall_texX[2]^wall_texY[2], 1'b0};   // Dark.
+
+    // wire [1:0]  wall_b =
+    //     wall_side ? {wall_texX[2]^wall_texY[2], 1'b1} :  // Bright wall side.
+    //                 {wall_texX[2]^wall_texY[2], 1'b0};   // Dark wall side.
+
 
 `ifdef ENABLE_DEBUG
     wire signed [10:0]  debug_offset  = {1'b0,h} - (640 - (1<<DEBUG_SCALE)*(`Qm+`Qn) - 1);
@@ -316,7 +370,7 @@ module raybox(
         in_map_overlay  ?   0 :
         in_border       ?   2'b01 :             // Border is dark purple.
         dead_column     ?   2'b11 :             // 0-height columns are filled with magenta.
-        in_wall         ?   0 :
+        in_wall         ?   wall_r :
                             background;
     
     assign g =
@@ -327,7 +381,7 @@ module raybox(
         in_map_overlay  ?   0 :
         in_border       ?   0 :
         dead_column     ?   0 :
-        in_wall         ?   0 :
+        in_wall         ?   wall_g :
                             background;
     
     assign b =
@@ -338,12 +392,7 @@ module raybox(
         in_map_overlay  ?   map_val :           // Map cell (colour).
         in_border       ?   2'b01 :             // Border is dark purple.
         dead_column     ?   2'b11 :             // 0-height columns are filled with magenta.
-        in_wall         ?
-                            wall_side ?
-                                {wall_tex[2], 1'b1} :         // Bright wall side.
-                                {wall_tex[2], 1'b0} :         // Dark wall side.
-                                // 2'b11 :         // Bright wall side.
-                                // 2'b10 :         // Dark wall side.
+        in_wall         ?   wall_b :
                             background;         // Ceiling/floor background.
 
 endmodule

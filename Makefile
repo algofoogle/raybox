@@ -28,7 +28,8 @@ MAIN_VSOURCES = \
 	src/rtl/lzc_b.v \
 	src/rtl/lzc_c.v \
 	src/rtl/lzc_d.sv \
-	src/rtl/reciprocal.v
+	src/rtl/reciprocal.v \
+	src/rtl/texture_rom.v
 
 # Top Verilog module representing our design:
 TOP = raybox
@@ -37,7 +38,7 @@ TOP = raybox
 # Stuff for simulation:
 #CFLAGS = -CFLAGS -municode
 #CFLAGS := -CFLAGS -DINSPECT_INTERNAL
-SIM_LDFLAGS = -lSDL2 -lSDL2_ttf
+SIM_LDFLAGS = -lSDL2 -lSDL2_ttf -lSDL2_image
 ifeq ($(OS),Windows_NT)
 	SIM_EXE = sim/obj_dir/V$(TOP).exe
 else

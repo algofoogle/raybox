@@ -43,7 +43,8 @@ using namespace std;
 // #define USE_POWER_PINS //NOTE: This is automatically set in the Makefile, now.
 #define INSPECT_INTERNAL //NOTE: This is automatically set in the Makefile, now.
 #ifdef INSPECT_INTERNAL
-  #include "Vraybox_raybox.h" // Needed for accessing "verilator public" stuff.
+  #include "Vraybox_raybox.h"       // Needed for accessing "verilator public" stuff in `raybox`
+  #include "Vraybox_texture_rom.h"  // Needed for accessing "verilator public" stuff in `raybox.wall_textures`
 #endif
 
 #define FONT_FILE "sim/font-cousine/Cousine-Regular.ttf"
@@ -59,6 +60,7 @@ using namespace std;
 #define S2(s2) S1(s2)
 
 #include <SDL2/SDL.h>
+#include <SDL2/SDL_image.h> // This will be used for loading "ROMs" that interface with the design: Map & Texture data.
 #include <SDL2/SDL_ttf.h>
 
 // It would be nice if these could be retrieved directly from the Verilog.
@@ -443,6 +445,93 @@ void scale_motion_multiplier(double s) {
   gMotionMultiplier *= s;
   printf("Motion multiplier is now: %lf\n", gMotionMultiplier);
 }
+
+
+class RawImage {
+public:
+  uint8_t* m_raw;
+  int width;
+  int height;
+  bool valid;
+  RawImage() {
+    width = 0;
+    height = 0;
+    m_raw = NULL;
+    valid = false;
+  }
+  RawImage(const char* texture_file, int expect_width=0, int expect_height=0) : RawImage() {
+    load_image(texture_file);
+  }
+  ~RawImage() {
+    if (m_raw) delete m_raw;
+  }
+  void load_image(const char* f, int xw=0, int xh=0) {
+    SDL_Surface* s = IMG_Load(f);
+    if (!s) {
+      printf("ERROR: Failed to load texture image file '%s' due to error '%s'\n", f, SDL_GetError());
+      return;
+    }
+    width = s->w;
+    height = s->h;
+    if ( (xw && xw != width) || (xh && xh != height) ) {
+      printf("ERROR: Image '%s' should be %dx%d pixels, but is: %dx%d\n", f, xw, xh, width, height);
+      SDL_FreeSurface(s);
+      return;
+    }
+    Uint32 fmt = s->format->format;
+    if (fmt != SDL_PIXELFORMAT_RGB24) {
+      printf("ERROR: Image '%s' is wrong pixel format. Was expecting %x but got %x\n", f, SDL_PIXELFORMAT_RGB24, fmt);
+      SDL_FreeSurface(s);
+      return;
+    }
+    // Load raw image data...
+    SDL_LockSurface(s);
+    m_raw = new uint8_t[width*height*3];
+    for (int y = 0; y < height; ++y) {
+      // Copy line by line, because of s->pitch.
+      memcpy(m_raw + y*width*3, ((uint8_t*)(s->pixels)) + y*s->pitch, width*3 );
+    }
+    SDL_UnlockSurface(s);
+    // Done:
+    SDL_FreeSurface(s);
+    valid = true;
+  }
+  uint8_t* rgba(int x, int y) {
+    return m_raw+((y*width)+x)*3;
+  }
+  uint8_t r(int x, int y) { return rgba(x,y)[0]; }
+  uint8_t g(int x, int y) { return rgba(x,y)[1]; }
+  uint8_t b(int x, int y) { return rgba(x,y)[2]; }
+  // uint8_t a(int x, int y) { return rgba(x,y)[3]; }
+};
+
+
+// Texture file is expected to be a 24-bit PNG that is 128x64px, with the left
+// half of it being "bright" wall, and right half "dark" wall.
+// Only the upper 2 bits should be used in each of the R,G,B channels, to be
+// compatible with how Raybox currently works. The code just picks off the
+// upper 2 bits of each channel anyway.
+void load_texture_rom(const char *texture_file) {
+  RawImage tex(texture_file, 128, 64);
+  if (!tex.valid) {
+    printf("ERROR: Texture ROM image %s is invalid\n", texture_file);
+  } else {
+    printf("DEBUG: Loaded texture ROM image %s\n", texture_file);
+  }
+  // Transfer texture image data into the design's wall_textures ROM:
+  // printf("%016llX\n", TB->m_core->DESIGN->wall_textures->data);
+  for (int x=0; x<tex.width; ++x) {
+    for (int y=0; y<tex.height; ++y) {
+      uint8_t r = (tex.r(x, y) & 0xC0) >> 6; // Upper 2 bits only.
+      uint8_t g = (tex.g(x, y) & 0xC0) >> 6; // Upper 2 bits only.
+      uint8_t b = (tex.b(x, y) & 0xC0) >> 6; // Upper 2 bits only.
+      TB->m_core->DESIGN->wall_textures->data[x][y] = //0x30;
+        (r<<4) | (g<<2) | (b);
+    }
+  }
+  printf("DEBUG: Transferred texture ROM into raybox.wall_textures\n");
+}
+
 
 
 void process_sdl_events() {
@@ -901,6 +990,8 @@ int main(int argc, char **argv) {
   else {
     printf("Font loaded.\n");
   }
+
+  load_texture_rom("assets/blue-wall-222.png");
   
   SDL_SetRenderDrawColor(renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
   SDL_RenderClear(renderer);

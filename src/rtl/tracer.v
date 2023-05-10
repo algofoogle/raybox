@@ -113,6 +113,7 @@ module tracer(
     reg `UF      trackYdist;
 
     // Get fractional part [0,1) of where the ray hits the wall:
+    //SMELL: Surely there's a way to optimise this:
     wire `F2 rayFullHitX = visualWallDist*rayDirX;
     wire `F2 rayFullHitY = visualWallDist*rayDirY;
     wire `F wallX = side
