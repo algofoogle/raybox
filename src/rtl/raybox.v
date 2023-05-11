@@ -216,7 +216,7 @@ module raybox(
         .clk    (clk),
         .column (buffer_column),
         .side   (wall_side),
-        .height (wall_height[7:0]),
+        .distance (wall_dist[6:-9]),
         .tex    (wall_texX),
         .cs     (1),    //SMELL: Redundant?
         .we     (trace_we),
@@ -227,17 +227,33 @@ module raybox(
     wire [9:0]  buffer_column = visible ? h : tracer_addr;
     wire [9:0]  tracer_addr;    // Driven by tracer directly...
     wire        tracer_side;    // ...
-    wire [7:0]  tracer_height;  // ...
+    wire [15:0]  tracer_dist;  // ...
     wire [5:0]  tracer_texX;    // .
 
     // During trace_buffer write, we drive wall_height directly.
     // Otherwise, set it to Z because trace_buffer drives it:
     wire        wall_side   = trace_we ? tracer_side            :  1'bz;
-    wire [9:0]  wall_height = trace_we ? {2'b00,tracer_height}  : 10'bz; //SMELL: [9:0], only to avoid in_wall logic warnings.
+    wire `F     wall_dist;
+
+    //SMELL: Upper 5 bits are UNASSIGNED (presumed Z) because Verilator doesn't like it.
+    // We might need to rework this a bit beause because this will probably break where
+    // this gets used as the reciprocal input below.
+    // assign wall_dist[`Qm-1:7] = 5'b0;
+    assign wall_dist[6:-9] = trace_we ? tracer_dist : 16'bz;
+    assign wall_dist[-10:-`Qn] = 0;
+
     wire [5:0]  wall_texX   = trace_we ? tracer_texX            :  6'bz;
+
+    wire `F  heightScale; // Comes from reciprocal of wall_dist.
+    wire        satHeight; //SMELL: Unused.
+    reciprocal #(.M(`Qm),.N(`Qn)) height_scaler (.i_data(wall_dist), .i_abs(1), .o_data(heightScale), .o_sat(satHeight));
+
+    wire [9:0] wall_height = heightScale[1:-8]; // Equiv. to: fixed-point heightScale value, *256, floored. Note that this can go up to 511.
+    wire `F yscale = wall_dist >> 3; // I think this makes sense if we think of it as <<(6-9)
+
     // Work out the texture Y offset (in range 0..63) by using how far v is through wall_height:
 /* verilator lint_off WIDTH */
-    wire `F     yscale = `intF(64) / (wall_height<<1);
+    // wire `F     yscale = `intF(64) / (wall_height<<1);
     //NOTE: for yscale, imagine it is now 0..511, and we already know its reciprocal (distance?) via the tracer.
     // Could we then just store the distance value in the trace buffer, reciprocate in THIS module to get the wall_height,
     // and shift it by 6 or 7 bits?
@@ -257,6 +273,8 @@ module raybox(
     // For instance:
     //      wtyf = (v-240+wall_height) * (64/wall_height*2)
     // =>   wtyf = ...
+
+
     wire [9:0]  vd = v - (HALF_HEIGHT-wall_height);
     wire `F2    wtyf = `IF(vd) * yscale;
     wire [5:0]  wall_texY = wtyf[5:0];
@@ -283,7 +301,7 @@ module raybox(
         .store  (trace_we),
         .column (tracer_addr),
         .side   (tracer_side),
-        .height (tracer_height),
+        .distance (tracer_dist),
         .tex    (tracer_texX)
     );
 
@@ -295,7 +313,7 @@ module raybox(
     );
 
     // Considering vertical position: Are we rendering wall or background in this pixel?
-    wire        in_wall = (HALF_HEIGHT-wall_height) <= v && v <= (HALF_HEIGHT+wall_height);
+    wire        in_wall = (wall_height > HALF_HEIGHT) || ((HALF_HEIGHT-wall_height) <= v && v <= (HALF_HEIGHT+wall_height));
 
     // Are we in the border area?
     //SMELL: This conceals some slight rendering glitches that we really should fix.

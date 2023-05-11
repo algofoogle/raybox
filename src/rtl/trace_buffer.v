@@ -33,29 +33,29 @@ module trace_buffer(
     input [9:0] column,
 
     // InOut ports (i.e. bi-dir):
-    inout [7:0] height, //SMELL: Should we have separate read/write ports for simplicity?
+    inout [15:0] distance, //SMELL: Should we have separate read/write ports for simplicity?
     inout       side,
     inout [5:0] tex
 );
 
-    reg [7:0]   height_out;
+    reg [15:0]   dist_out;
     reg         side_out;
     reg [5:0]   tex_out;
 
-    reg [7:0]   dummy_height_memory [0:640-1];  // 5120 bits.
+    reg [15:0]   dummy_dist_memory [0:640-1];  // 10240 bits.
     reg         dummy_side_memory   [0:640-1];  // 640 bits.
     reg [5:0]   dummy_tex_memory    [0:640-1];  // 3840 bits.
 
     // Tri-state buffer control for output mode:
     wire read_mode = (cs && oe && !we);
-    assign height   = read_mode ? height_out    : 8'bz;
+    assign distance   = read_mode ? dist_out    : 16'bz;
     assign side     = read_mode ? side_out      : 1'bz;
     assign tex      = read_mode ? tex_out       : 6'bz;
 
     // Memory write block:
     always @(posedge clk) begin : MEM_WRITE
         if (cs && we) begin
-            dummy_height_memory [column]    = height;
+            dummy_dist_memory [column]    = distance;
             dummy_side_memory   [column]    = side;
             dummy_tex_memory    [column]    = tex;
         end
@@ -64,7 +64,7 @@ module trace_buffer(
     // Memory read block:
     always @(posedge clk) begin : MEM_READ
         if (read_mode) begin
-            height_out  = dummy_height_memory [column];
+            dist_out  = dummy_dist_memory [column];
             side_out    = dummy_side_memory   [column];
             tex_out     = dummy_tex_memory    [column];
         end

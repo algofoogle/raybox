@@ -58,7 +58,8 @@ module tracer(
     output reg          store,              // Driven high when we've got a result to store.
     output      [9:0]   column,             // The column we'll write to in the trace_buffer.
     output reg          side,               // The side data we'll write for the respective column.
-    output      [7:0]   height,             // The height data we'll write for the column. NOTE: Make sure we only output 1..240
+    output      [15:0]  distance,
+    // output      [7:0]   height,             // The height data we'll write for the column. NOTE: Make sure we only output 1..240
     output      [5:0]   tex,                // X coordinate (column) of wall's texture where the hit occurred.
 
     // Map ROM access:
@@ -148,11 +149,11 @@ module tracer(
     // be getting the reciprocals; just once at ray start, and once at ray end?
     reciprocal #(.M(`Qm),.N(`Qn)) flipX         (.i_data(rayDirX),          .i_abs(1), .o_data(stepXdist),  .o_sat(satX));
     reciprocal #(.M(`Qm),.N(`Qn)) flipY         (.i_data(rayDirY),          .i_abs(1), .o_data(stepYdist),  .o_sat(satY));
-    reciprocal #(.M(`Qm),.N(`Qn)) height_scaler (.i_data(visualWallDist),   .i_abs(1), .o_data(heightScale),.o_sat(satHeight));
+    // reciprocal #(.M(`Qm),.N(`Qn)) height_scaler (.i_data(visualWallDist),   .i_abs(1), .o_data(heightScale),.o_sat(satHeight));
     // These capture the "saturation" (i.e. overflow) state of our reciprocal calculators:
     wire satX;
     wire satY;
-    wire satHeight;
+    // wire satHeight;
     // We might need these as we improve the design, in order to stop tracing on a given axis.
 
     // Generate the initial tracking distances, as a portion of the full
@@ -168,30 +169,34 @@ module tracer(
     assign map_row = mapY[3:0];
 
     wire `F     visualWallDist = side ? trackYdist-stepYdist : trackXdist-stepXdist;
-    wire `F     heightScale;
+    assign distance = visualWallDist[6:-9]; //HACK:
+    //HACK: Range [6:-9] are enough bits to get the precision and limits we want for distance,
+    // i.e. UQ7.9 allows distance to have 1/512 precision and range of [0,127).
 
-    // Use a wall reference height of 256, which makes the maths simpler
-    // (i.e. simple bit extraction instead of a multiplier), and happens to
-    // also make the aspect ratio closer to square for each map cell:
-    wire [7:0] wallHeight =
-        (heightScale >= `intF(1)) ? 8'd255 : // Cap height at 255 if heightScale >= 1.0
-        heightScale[-1:-8];  // Else we just need the upper 8 bits of the fractional part.
-    //SMELL: Yes, this is hard-coded, but it works given we are assuming a max height of 255
-    // (so, a full 8-bit range), and hence the upper 8 bits of precision would effectively
-    // be multiplied by 256 anyway. Example:
-    // - If heightScale is 1.0 or 1.5, then the first condition catches it and clamps it to 255.
-    // - If heightScale is 0.75, then the second condition should yield 256*0.75=192.
-    //   It accomplishes this by just grabbing the upper 8 fractional bits: b.1100'0000
-    //   which is 192.
-    //NOTE: First (cap) condition could probably just be: |`FI(heightScale).
+    // wire `F     heightScale;
 
-    // Determine the final height value we'll write:
-    assign height =
-        // Write 0 if we're in the "dead" region. //SMELL: We don't want this in future.
-        (state == LCLEAR || state == RCLEAR) ? 8'd0 :
-        // Values above 240 are CURRENTLY too high, so clamp:
-        (wallHeight > 8'd240) ? 8'd240 :
-        wallHeight;
+    // // Use a wall reference height of 256, which makes the maths simpler
+    // // (i.e. simple bit extraction instead of a multiplier), and happens to
+    // // also make the aspect ratio closer to square for each map cell:
+    // wire [7:0] wallHeight =
+    //     (heightScale >= `intF(1)) ? 8'd255 : // Cap height at 255 if heightScale >= 1.0
+    //     heightScale[-1:-8];  // Else we just need the upper 8 bits of the fractional part.
+    // //SMELL: Yes, this is hard-coded, but it works given we are assuming a max height of 255
+    // // (so, a full 8-bit range), and hence the upper 8 bits of precision would effectively
+    // // be multiplied by 256 anyway. Example:
+    // // - If heightScale is 1.0 or 1.5, then the first condition catches it and clamps it to 255.
+    // // - If heightScale is 0.75, then the second condition should yield 256*0.75=192.
+    // //   It accomplishes this by just grabbing the upper 8 fractional bits: b.1100'0000
+    // //   which is 192.
+    // //NOTE: First (cap) condition could probably just be: |`FI(heightScale).
+
+    // // Determine the final height value we'll write:
+    // assign height =
+    //     // Write 0 if we're in the "dead" region. //SMELL: We don't want this in future.
+    //     (state == LCLEAR || state == RCLEAR) ? 8'd0 :
+    //     // Values above 240 are CURRENTLY too high, so clamp:
+    //     (wallHeight > 8'd240) ? 8'd240 :
+    //     wallHeight;
     // Output current column counter value:
     assign column = col_counter;
 
