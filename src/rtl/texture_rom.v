@@ -32,15 +32,20 @@ module texture_rom #(
 );
 
 `ifdef DUMMY_TEXTURE
-		assign val = {
-			1'b1,side,
-			1'b0,1'b0,
-			1'b0,1'b0
-		};
+    assign val = {
+        1'b1,side,
+        1'b0,1'b0,
+        1'b0,1'b0
+    };
 `else
-		//SMELL: This reg should be however many bits our output val is.
-		// I've just made it 8-bit for now to match my data file.
+    //SMELL: This reg should be however many bits our output val is.
+    // I've just made it 8-bit for now to match my data file.
     reg [7:0] data [0:127][0:63] /* verilator public */;
+
+    initial begin
+        $readmemh("assets/texture-xrgb-2222.hex", data);
+    end
+
     assign val[CHANNEL_BITS*3-1:0] = data[{side,col}][row][CHANNEL_BITS*3-1:0];
 `endif
 

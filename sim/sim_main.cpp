@@ -518,18 +518,26 @@ void load_texture_rom(const char *texture_file) {
   } else {
     printf("DEBUG: Loaded texture ROM image %s\n", texture_file);
   }
-  // Transfer texture image data into the design's wall_textures ROM:
-  // printf("%016llX\n", TB->m_core->DESIGN->wall_textures->data);
+  // Transfer texture image data into the design's wall_textures ROM,
+  // while also writing out to assets/texture-xrgb-2222.hex:
+  const char* tex_dump = "assets/texture-xrgb-2222.hex";
+  printf("Dumping texture data to %s\n", tex_dump);
+  FILE *f = fopen(tex_dump, "w");
+  fprintf(f, "@00000000\n");
+  int counter = 0;
   for (int x=0; x<tex.width; ++x) {
     for (int y=0; y<tex.height; ++y) {
       uint8_t r = (tex.r(x, y) & 0xC0) >> 6; // Upper 2 bits only.
       uint8_t g = (tex.g(x, y) & 0xC0) >> 6; // Upper 2 bits only.
       uint8_t b = (tex.b(x, y) & 0xC0) >> 6; // Upper 2 bits only.
-      TB->m_core->DESIGN->wall_textures->data[x][y] = //0x30;
-        (r<<4) | (g<<2) | (b);
+      uint8_t v = (r<<4) | (g<<2) | (b);
+      // TB->m_core->DESIGN->wall_textures->data[x][y] = v;
+      fprintf(f, "%02X%c", v, counter%16==15 ? '\n' : ' ');
+      ++counter;
     }
   }
   printf("DEBUG: Transferred texture ROM into raybox.wall_textures\n");
+  fclose(f);
 }
 
 
@@ -550,9 +558,9 @@ void process_sdl_events() {
       int fn_key = 0;
       switch (e.key.keysym.sym) {
         case SDLK_F12:
-            // Toggle mouse capture.
-            toggle_mouse_capture();
-            break;
+          // Toggle mouse capture.
+          toggle_mouse_capture();
+          break;
         case SDLK_F10:++fn_key;
         case SDLK_F9: ++fn_key;
         case SDLK_F8: ++fn_key;
