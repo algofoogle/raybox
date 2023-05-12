@@ -26,36 +26,37 @@
 // we'll be reading back those same 640 traces repeatedly for each line.
 module trace_buffer(
     // Input ports:
-    input       clk,
-    input       cs,
-    input       we,
-    input       oe,
-    input [9:0] column,
+    input           clk,
+    input           cs,
+    input           we,
+    input           oe,
+    input [9:0]     column,
 
     // InOut ports (i.e. bi-dir):
-    inout [15:0] distance, //SMELL: Should we have separate read/write ports for simplicity?
-    inout       side,
-    inout [5:0] tex
+    //SMELL: Should we have separate read/write ports for simplicity?
+    inout [15:0]    vdist,  // View (trace) distance, as Q7.9.
+    inout           side,
+    inout [5:0]     tex
 );
 
-    reg [15:0]   dist_out;
-    reg         side_out;
-    reg [5:0]   tex_out;
+    reg [15:0]      vdist_out;
+    reg             side_out;
+    reg [5:0]       tex_out;
 
-    reg [15:0]   dummy_dist_memory [0:640-1];  // 10240 bits.
-    reg         dummy_side_memory   [0:640-1];  // 640 bits.
-    reg [5:0]   dummy_tex_memory    [0:640-1];  // 3840 bits.
+    reg [15:0]      dummy_vdist_memory  [0:640-1];  // 10240 bits.
+    reg             dummy_side_memory   [0:640-1];  // 640 bits.
+    reg [5:0]       dummy_tex_memory    [0:640-1];  // 3840 bits.
 
     // Tri-state buffer control for output mode:
-    wire read_mode = (cs && oe && !we);
-    assign distance   = read_mode ? dist_out    : 16'bz;
-    assign side     = read_mode ? side_out      : 1'bz;
-    assign tex      = read_mode ? tex_out       : 6'bz;
+    wire read_mode  = (cs && oe && !we);
+    assign vdist    = read_mode ? vdist_out  : 16'bz;
+    assign side     = read_mode ? side_out  : 1'bz;
+    assign tex      = read_mode ? tex_out   : 6'bz;
 
     // Memory write block:
     always @(posedge clk) begin : MEM_WRITE
         if (cs && we) begin
-            dummy_dist_memory [column]    = distance;
+            dummy_vdist_memory  [column]    = vdist;
             dummy_side_memory   [column]    = side;
             dummy_tex_memory    [column]    = tex;
         end
@@ -64,9 +65,9 @@ module trace_buffer(
     // Memory read block:
     always @(posedge clk) begin : MEM_READ
         if (read_mode) begin
-            dist_out  = dummy_dist_memory [column];
-            side_out    = dummy_side_memory   [column];
-            tex_out     = dummy_tex_memory    [column];
+            vdist_out   = dummy_vdist_memory[column];
+            side_out    = dummy_side_memory [column];
+            tex_out     = dummy_tex_memory  [column];
         end
     end
 

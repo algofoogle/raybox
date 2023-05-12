@@ -202,11 +202,10 @@ module raybox(
         .frame  (frame)
     );
 
-
-    wire        vblank = v>=SCREEN_HEIGHT;  // VBLANK: Not rendering, so no screen data reads needed.
-    wire        ceiling = v<HALF_HEIGHT;    // Are we in the ceiling or floor part of the frame?
-    wire [1:0]  background = ceiling ? 2'b01 : 2'b10;    // Ceiling is dark grey, floor is light grey.
-    wire        trace_we; // trace_buffer Write Enable; tracer-driven. When off, trace_buffer stays in read mode.
+    wire                vblank      = v>=SCREEN_HEIGHT;         // VBLANK: Not rendering, so no screen data reads needed.
+    wire                ceiling     = v<HALF_HEIGHT;            // Are we in the ceiling or floor part of the frame?
+    wire [1:0]          background  = ceiling ? 2'b01 : 2'b10;  // Ceiling is dark grey, floor is light grey.
+    wire                trace_we;                               // trace_buffer Write Enable; tracer-driven. When off, trace_buffer stays in read mode.
 
     // During VBLANK, tracer writes to memory.
     // During visible, memory reads get wall column heights/sides to render.
@@ -216,7 +215,7 @@ module raybox(
         .clk    (clk),
         .column (buffer_column),
         .side   (wall_side),
-        .distance (wall_dist[6:-9]),
+        .vdist  (wall_dist),
         .tex    (wall_texX),
         .cs     (1),    //SMELL: Redundant?
         .we     (trace_we),
@@ -224,35 +223,34 @@ module raybox(
     );
 
     // Trace column is selected either by screen render read loop, or by tracer state machine:
-    wire [9:0]  buffer_column = visible ? h : tracer_addr;
-    wire [9:0]  tracer_addr;    // Driven by tracer directly...
-    wire        tracer_side;    // ...
-    wire [15:0]  tracer_dist;  // ...
-    wire [5:0]  tracer_texX;    // .
+    wire [9:0]          buffer_column = visible ? h : tracer_addr;
+    wire [9:0]          tracer_addr;    // Driven by tracer directly...
+    wire                tracer_side;    // ...
+    wire [`DII:`DFI]    tracer_dist;    // ...(using fewer bits, to reduce memory size)...
+    wire [5:0]          tracer_texX;    // .
 
     // During trace_buffer write, we drive wall_height directly.
     // Otherwise, set it to Z because trace_buffer drives it:
-    wire        wall_side   = trace_we ? tracer_side            :  1'bz;
-    wire `F     wall_dist;
+    wire                wall_side   = trace_we ? tracer_side : 1'bz;
+    wire [`DII:`DFI]    wall_dist   = trace_we ? tracer_dist : { `Dbits{1'bz} };
+    wire [5:0]          wall_texX   = trace_we ? tracer_texX : 6'bz;
 
-    //SMELL: Upper 5 bits are UNASSIGNED (presumed Z) because Verilator doesn't like it.
-    // We might need to rework this a bit beause because this will probably break where
-    // this gets used as the reciprocal input below.
-    // assign wall_dist[`Qm-1:7] = 5'b0;
-    assign wall_dist[6:-9] = trace_we ? tracer_dist : 16'bz;
-    assign wall_dist[-10:-`Qn] = 0;
+    wire `F             heightScale;    // Comes from reciprocal of wall_dist.
+    wire                satHeight;      //SMELL: Unused.
+    //SMELL: Can this reciprocal use `DI and `DF or something similar instead, so we don't need to pad it out to a full Q12.12?
+    reciprocal #(.M(`Qm),.N(`Qn)) height_scaler (
+        .i_data ( { {(`Qm-`DI){1'b0}}, wall_dist, {(`Qn-`DF){1'b0}} } ), // Pad wall_dist to full `F range.
+        .i_abs  (1),
+        .o_data (heightScale),
+        .o_sat  (satHeight)
+    );
 
-    wire [5:0]  wall_texX   = trace_we ? tracer_texX            :  6'bz;
-
-    wire `F  heightScale; // Comes from reciprocal of wall_dist.
-    wire        satHeight; //SMELL: Unused.
-    reciprocal #(.M(`Qm),.N(`Qn)) height_scaler (.i_data(wall_dist), .i_abs(1), .o_data(heightScale), .o_sat(satHeight));
-
-    wire [9:0] wall_height = heightScale[1:-8]; // Equiv. to: fixed-point heightScale value, *256, floored. Note that this can go up to 511.
-    wire `F yscale = wall_dist >> 3; // I think this makes sense if we think of it as <<(6-9)
+/* verilator lint_off WIDTH */
+    //SMELL: We could pack yscale into a smaller number of bits. Basically we could just use wall_dist directly...?
+    wire `F             yscale      = wall_dist;// >> 3;       // Makes sense I think if seen as >>(9-6) where 2^9 is wall_height, 2^6 is texture height.
+    wire [9:0]          wall_height = heightScale[1:-8];    // Equiv. to: fixed-point heightScale value, *256, floored. Note that this can go up to 511.
 
     // Work out the texture Y offset (in range 0..63) by using how far v is through wall_height:
-/* verilator lint_off WIDTH */
     // wire `F     yscale = `intF(64) / (wall_height<<1);
     //NOTE: for yscale, imagine it is now 0..511, and we already know its reciprocal (distance?) via the tracer.
     // Could we then just store the distance value in the trace buffer, reciprocate in THIS module to get the wall_height,
@@ -276,7 +274,7 @@ module raybox(
 
 
     wire [9:0]  vd = v - (HALF_HEIGHT-wall_height);
-    wire `F2    wtyf = `IF(vd) * yscale;
+    wire `F2    wtyf = `IF(vd) * yscale; //SMELL: We could fix this up to just use the necessary number of its bits (i.e. 10+16)
     wire [5:0]  wall_texY = wtyf[5:0];
 /* verilator lint_on WIDTH */
 
@@ -301,7 +299,7 @@ module raybox(
         .store  (trace_we),
         .column (tracer_addr),
         .side   (tracer_side),
-        .distance (tracer_dist),
+        .vdist  (tracer_dist),
         .tex    (tracer_texX)
     );
 

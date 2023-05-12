@@ -58,7 +58,7 @@ module tracer(
     output reg          store,              // Driven high when we've got a result to store.
     output      [9:0]   column,             // The column we'll write to in the trace_buffer.
     output reg          side,               // The side data we'll write for the respective column.
-    output      [15:0]  distance,
+    output      [15:0]  vdist,
     // output      [7:0]   height,             // The height data we'll write for the column. NOTE: Make sure we only output 1..240
     output      [5:0]   tex,                // X coordinate (column) of wall's texture where the hit occurred.
 
@@ -169,7 +169,7 @@ module tracer(
     assign map_row = mapY[3:0];
 
     wire `F     visualWallDist = side ? trackYdist-stepYdist : trackXdist-stepXdist;
-    assign distance = visualWallDist[6:-9]; //HACK:
+    assign vdist = visualWallDist[6:-9]; //HACK:
     //HACK: Range [6:-9] are enough bits to get the precision and limits we want for distance,
     // i.e. UQ7.9 allows distance to have 1/512 precision and range of [0,127).
 
