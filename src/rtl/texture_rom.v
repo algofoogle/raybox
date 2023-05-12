@@ -21,6 +21,12 @@
 `timescale 1ns / 1ps
 
 //`define DUMMY_TEXTURE
+`ifdef NOT_QUARTUS
+    `define TEXTURE_FILE "assets/texture-xrgb-2222.hex"
+`else
+    // Quartus needs a different relative path to find this file.
+    `define TEXTURE_FILE "../assets/texture-xrgb-2222.hex"
+`endif
 
 module texture_rom #(
     parameter CHANNEL_BITS=2
@@ -44,10 +50,11 @@ module texture_rom #(
     reg [7:0] data [0:8191] /* verilator public */;
 
     initial begin
-        $readmemh("../assets/texture-xrgb-2222.hex", data);
+        //NOTE: This file scans on Y axis first, then X.
+        $readmemh(`TEXTURE_FILE, data);
     end
 
-    assign val[CHANNEL_BITS*3-1:0] = data[{row,side,col}][CHANNEL_BITS*3-1:0];
+    assign val[CHANNEL_BITS*3-1:0] = data[{~side,col,row}][CHANNEL_BITS*3-1:0];
 `endif
 
 endmodule

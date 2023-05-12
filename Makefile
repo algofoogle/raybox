@@ -92,6 +92,7 @@ $(SIM_EXE): $(MAIN_VSOURCES) sim/sim_main.cpp sim/main_tb.h sim/testbench.h
 		$(CFLAGS) \
 		-LDFLAGS "$(SIM_LDFLAGS)" \
 		+define+RESET_AL \
+		+define+NOT_QUARTUS \
 		$(XDEFINES)
 
 clean:
