@@ -20,6 +20,8 @@
 `default_nettype none
 `timescale 1ns / 1ps
 
+//`define DUMMY_TEXTURE
+
 module texture_rom #(
     parameter CHANNEL_BITS=2
 )(
@@ -28,6 +30,18 @@ module texture_rom #(
     input   [5:0]       row,
     output  [CHANNEL_BITS*3-1:0]  val
 );
-    reg [CHANNEL_BITS*3-1:0] data [0:127][0:63] /* verilator public */;
-    assign val = data[{side,col}][row];
+
+`ifdef DUMMY_TEXTURE
+		assign val = {
+			1'b1,side,
+			1'b0,1'b0,
+			1'b0,1'b0
+		};
+`else
+		//SMELL: This reg should be however many bits our output val is.
+		// I've just made it 8-bit for now to match my data file.
+    reg [7:0] data [0:127][0:63] /* verilator public */;
+    assign val[CHANNEL_BITS*3-1:0] = data[{side,col}][row][CHANNEL_BITS*3-1:0];
+`endif
+
 endmodule
