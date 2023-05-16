@@ -42,9 +42,9 @@ module raybox(
     input   `F      new_vplaneX,
     input   `F      new_vplaneY,
     
-    output  [1:0]   red,   // Each of R, G, and B are 2bpp, for a total of 64 possible colours.
-    output  [1:0]   green,
-    output  [1:0]   blue,
+    output  reg [1:0]   red,   // Each of R, G, and B are 2bpp, for a total of 64 possible colours.
+    output  reg [1:0]   green,
+    output  reg [1:0]   blue,
     output          hsync,
     output          vsync,
     output  [9:0]   px,   // Current pixel x.
@@ -204,9 +204,12 @@ module raybox(
 
     // RGB output gating:
     wire [1:0]  r, g, b; // Raw R, G, B values to be gated by 'visible'.
-    assign red  = visible ? r : 2'b00;
-    assign green= visible ? g : 2'b00;
-    assign blue = visible ? b : 2'b00;
+		
+		always @(posedge clk) begin
+				red   <= visible ? r : 2'b00;
+				green <= visible ? g : 2'b00;
+				blue  <= visible ? b : 2'b00;
+		end
 
     // This generates base VGA timing:
     vga_sync sync(
@@ -329,7 +332,14 @@ module raybox(
     );
 
     // Considering vertical position: Are we rendering wall or background in this pixel?
-    wire        in_wall = (wall_height > HALF_HEIGHT) || ((HALF_HEIGHT-wall_height) <= v && v <= (HALF_HEIGHT+wall_height));
+    wire        in_wall_comb = (wall_height > HALF_HEIGHT) || ((HALF_HEIGHT-wall_height) <= v && v <= (HALF_HEIGHT+wall_height));
+		
+		reg					in_wall;
+		
+		always @(posedge clk) begin
+			in_wall <= in_wall_comb;
+		end
+		
 
 
 
