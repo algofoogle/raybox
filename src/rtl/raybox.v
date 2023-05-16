@@ -107,12 +107,15 @@ module raybox(
 
 /* verilator lint_on REALCVT */
 
-    reg `F playerX /* verilator public */;
-    reg `F playerY /* verilator public */;
-    reg `F facingX /* verilator public */;     // Heading is the vector of the direction the player is facing.
-    reg `F facingY /* verilator public */;
-    reg `F vplaneX /* verilator public */;     // Viewplane vector (typically 'facing' rotated clockwise by 90deg and then scaled).
-    reg `F vplaneY /* verilator public */;     // (which could also be expressed as vx=-fy, vy=fx, then scaled).
+    reg `F      playerX /* verilator public */;
+    reg `F      playerY /* verilator public */;
+    reg `F      facingX /* verilator public */;     // Heading is the vector of the direction the player is facing.
+    reg `F      facingY /* verilator public */;
+    reg `F      vplaneX /* verilator public */;     // Viewplane vector (typically 'facing' rotated clockwise by 90deg and then scaled).
+    reg `F      vplaneY /* verilator public */;     // (which could also be expressed as vx=-fy, vy=fx, then scaled).
+
+    reg [9:0]   spriteX /* verilator public */;     // Centre point of sprite in screen coordinates.
+    reg `F      spriteD /* verilator public */;     // Sprite distance (using same units as walls). Affects visibility and scaling.
 
 
     assign speaker = 0; // Speaker is unused for now.
@@ -128,6 +131,13 @@ module raybox(
     //SMELL: Should `tick` come from vga_sync?
     // Should it be an output signal (e.g. for IRQ and diagnostics)?
     // Should one be generated at the start of VBLANK too?
+    integer debug_frame_count = 0;
+    always @(posedge clk) begin
+        if (tick) begin
+            debug_frame_count = debug_frame_count + 1;
+        end
+    end
+
 
     assign px = h;
     assign py = v;
@@ -145,6 +155,12 @@ module raybox(
 
             vplaneX <= vplaneXstart;
             vplaneY <= vplaneYstart;
+
+            spriteX <= 320;
+            spriteD <= `intF(3);
+
+            debug_frame_count = 0;
+
         end else if (v < SCREEN_HEIGHT && write_new_position) begin
             // Host wants to directly set new vectors:
             //SMELL: This should be handled properly with a synchronised loading method,
@@ -249,7 +265,7 @@ module raybox(
 
 /* verilator lint_off WIDTH */
     //SMELL: We could pack yscale into a smaller number of bits. Basically we could just use wall_dist directly...?
-    wire `F             yscale      = wall_dist;// >> 3;       // Makes sense I think if seen as >>(9-6) where 2^9 is wall_height, 2^6 is texture height.
+    wire `F             yscale      = wall_dist;// >> 3;    // NOTE: This scales the TEXTURE coordinate look-up... not the height of the wall.
     wire [9:0]          wall_height = heightScale[1:-8];    // Equiv. to: fixed-point heightScale value, *256, floored. Note that this can go up to 511.
 
     // Work out the texture Y offset (in range 0..63) by using how far v is through wall_height:
@@ -269,14 +285,14 @@ module raybox(
     // =>   yscale = visualWallDist / (512/64)
     // =>   yscale = visualWallDist / 8
     // =>   yscale = visualWallDist >> 3
-    //NOW: Is there ANOTHER to think of this that simplifies vd*yscale?
+    //NOW: Is there ANOTHER to think of this that simplifies wall_base*yscale?
     // For instance:
     //      wtyf = (v-240+wall_height) * (64/wall_height*2)
     // =>   wtyf = ...
 
-
-    wire [9:0]  vd = v - (HALF_HEIGHT-wall_height);
-    wire `F2    wtyf = `IF(vd) * yscale; //SMELL: We could fix this up to just use the necessary number of its bits (i.e. 10+16)
+    wire [9:0]  midline_offset = v-HALF_HEIGHT; // For textures.
+    wire [9:0]  wall_basis = midline_offset+wall_height;
+    wire `F2    wtyf = `IF(wall_basis) * yscale; //SMELL: We could fix this up to just use the necessary number of its bits (i.e. 10+16)
     wire [5:0]  wall_texY = wtyf[5:0];
 /* verilator lint_on WIDTH */
 
@@ -315,7 +331,52 @@ module raybox(
     // Considering vertical position: Are we rendering wall or background in this pixel?
     wire        in_wall = (wall_height > HALF_HEIGHT) || ((HALF_HEIGHT-wall_height) <= v && v <= (HALF_HEIGHT+wall_height));
 
-    wire        in_sprite = h[9:1] < 64 && v[9:1] < 64 && ( {sprite_r,sprite_g,sprite_b}!=SPRITE_TRANSPARENT_COLOR );
+
+
+    wire signed [9:0]  hso = h - spriteX; // h, offset by sprite centre (i.e. spriteX).
+
+    wire `F     spriteHeightScale;    // Comes from reciprocal of spriteD.
+    wire        spriteSatHeight;      //SMELL: Unused.
+    //SMELL: Can this reciprocal use `DI and `DF or something similar instead, so we don't need to pad it out to a full Q12.12?
+    reciprocal #(.M(`Qm),.N(`Qn)) sprite_scaler (
+        .i_data (spriteD),
+        .i_abs  (1),
+        .o_data (spriteHeightScale),
+        .o_sat  (spriteSatHeight)
+    );
+    wire [9:0]  sprite_height = spriteHeightScale[1:-8];    // Equiv. to: fixed-point heightScale value, *256, floored. Note that this can go up to 511.
+    wire `F     spriteTextureScale = spriteD>>3; // >>3: Texture range is 0..63 (<<6), divided by height range 0..511 (>>9).
+    wire `F2    stxf = `IF(hso) * spriteTextureScale;
+    wire [5:0]  sprite_texX = stxf[5:0]+32;
+
+    wire signed [9:0] shs = sprite_height;  // sprite_height signed (for visibility comparisons).
+
+    wire [9:0]  sprite_basis = midline_offset+sprite_height;
+    wire `F2    styf = `IF(sprite_basis) * spriteTextureScale;
+    wire [5:0]  sprite_texY = styf[5:0];
+    
+    wire        transparent_pixel = {sprite_r,sprite_g,sprite_b}==SPRITE_TRANSPARENT_COLOR;
+    wire        sprite_behind_wall = spriteTextureScale > yscale;
+
+    wire        in_sprite = 
+        // Not a transparent pixel:
+        !transparent_pixel &&
+        // Vertical axis is in range:
+        ((sprite_height > HALF_HEIGHT) || ((HALF_HEIGHT-sprite_height) <= v && v <= (HALF_HEIGHT+sprite_height))) &&
+        // Horizontal axis is in range:
+        hso >= (-shs) && hso < (shs) &&
+        // Sprite is in front of nearest wall:
+        !sprite_behind_wall;
+
+
+    // always @(posedge clk) begin
+    //     if (debug_frame_count == 10 && h==160 && (v==0||v==480)) begin
+    //         $display("================================================================");
+    //     end
+    //     if (debug_frame_count == 10 && h==160 && v<480) begin
+    //         $display("v=%d hso=%d sprite_texX=%d sprite_texY=%d color=%b in_sprite=%b", v, hso, sprite_texX, sprite_texY, {sprite_r,sprite_g,sprite_b}, in_sprite);
+    //     end
+    // end
 
     // Are we in the border area?
     //SMELL: This conceals some slight rendering glitches that we really should fix.
@@ -355,8 +416,8 @@ module raybox(
     );
 
     sprite_rom sprites(
-        .col(h[6:1]),
-        .row(v[6:1]),
+        .col(sprite_texX),
+        .row(sprite_texY),
         .val( {sprite_r, sprite_g, sprite_b} )
     );
     
