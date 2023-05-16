@@ -29,7 +29,9 @@ MAIN_VSOURCES = \
 	src/rtl/lzc_c.v \
 	src/rtl/lzc_d.sv \
 	src/rtl/reciprocal.v \
-	src/rtl/texture_rom.v
+	src/rtl/texture_rom.v \
+	src/rtl/sprite_rom.v
+
 
 # Top Verilog module representing our design:
 TOP = raybox

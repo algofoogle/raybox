@@ -515,6 +515,7 @@ void load_texture_rom(const char *texture_file) {
   RawImage tex(texture_file, 128, 64);
   if (!tex.valid) {
     printf("ERROR: Texture ROM image %s is invalid\n", texture_file);
+    return;
   } else {
     printf("DEBUG: Loaded texture ROM image %s\n", texture_file);
   }
@@ -537,6 +538,33 @@ void load_texture_rom(const char *texture_file) {
     }
   }
   printf("DEBUG: Transferred texture ROM into raybox.wall_textures\n");
+  fclose(f);
+}
+
+
+
+void convert_image_rom_png_to_hex(const char *infile, const char *outfile, int width, int height) {
+  RawImage image(infile, width, height);
+  if (!image.valid) {
+    printf("ERROR: Image ROM file %s is invalid\n", infile);
+    return;
+  } else {
+    printf("DEBUG: Loaded Image ROM %s\n", infile);
+  }
+  printf("Dumping Image ROM data to %s\n", outfile);
+  FILE *f = fopen(outfile, "w");
+  fprintf(f, "@00000000\n");
+  int counter = 0;
+  for (int x=0; x<image.width; ++x) {
+    for (int y=0; y<image.height; ++y) {
+      uint8_t r = (image.r(x, y) & 0xC0) >> 6; // Upper 2 bits only.
+      uint8_t g = (image.g(x, y) & 0xC0) >> 6; // Upper 2 bits only.
+      uint8_t b = (image.b(x, y) & 0xC0) >> 6; // Upper 2 bits only.
+      uint8_t v = (r<<4) | (g<<2) | (b);
+      fprintf(f, "%02X%c", v, counter%16==15 ? '\n' : ' ');
+      ++counter;
+    }
+  }
   fclose(f);
 }
 
@@ -999,7 +1027,9 @@ int main(int argc, char **argv) {
     printf("Font loaded.\n");
   }
 
-  load_texture_rom("assets/blue-wall-222.png");
+  //SMELL: This isn't actually used anymore because now the ROM data is embedded in the Verilog:
+  // load_texture_rom("assets/blue-wall-222.png");
+  convert_image_rom_png_to_hex("assets/Wolf3D-guard-sprite-RGB222.png", "assets/sprite-xrgb-2222.hex", 64, 64);
   
   SDL_SetRenderDrawColor(renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
   SDL_RenderClear(renderer);
