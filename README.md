@@ -19,15 +19,21 @@
 
 # Raybox
 
-This is the stat of a Verilog-based ray casting VGA renderer (i.e. "Wolf3D-style" game).
+This is the start of a Verilog-based ray casting VGA renderer (i.e. "Wolf3D-style" game).
+
+Below is a crappy animated GIF before wall textures were implemented. This doesn't do it justice; running on the FPGA, it is super smooth (60FPS) and clean:
 
 ![Animated GIF showing Raybox running on FPGA](doc/raybox-video-1.gif)
 
-This crappy animated GIF doesn't do it justice. Running on the FPGA, it is super smooth and clean.
+Running on an FPGA, showing 64x64 wall textures with RGB222 colour, but actually outputting only RGB111 to the monitor and using a 2x2 ordered dither:
+
+![Raybox running on FPGA showing wall textures](doc/raybox-walls.jpg)
 
 # License
 
-This repo is licensed with [Apache 2.0](LICENSE).
+This repo is licensed with [Apache 2.0](LICENSE), except for image files found in [`assets/`](./assets/) which
+are reduced-quality versions of those created by id Software for the 1992 game, "Wolfenstein 3D",
+and likely remain the property of ZeniMax Media.
 
 # Hardware
 
