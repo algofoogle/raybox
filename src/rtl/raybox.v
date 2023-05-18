@@ -24,33 +24,38 @@
 `include "fixed_point_params.v"
 
 module raybox(
-    input           clk,
-    input           reset,
-    input           show_map,           // Button to control whether we show the map overlay.
-    input           show_debug,
-    
-    input           moveL,
-    input           moveR,
-    input           moveF,
-    input           moveB,
+    input               clk,
+    input               reset,
+    input               show_map,           // Button to control whether we show the map overlay.
+    input               show_debug,
 
-    input           write_new_position, // If true, use the `new_*` values to overwrite the design's registers.
-    input   `F      new_playerX,
-    input   `F      new_playerY,
-    input   `F      new_facingX,
-    input   `F      new_facingY,
-    input   `F      new_vplaneX,
-    input   `F      new_vplaneY,
+    input               moveL,
+    input               moveR,
+    input               moveF,
+    input               moveB,
+
+    input               debugA,
+    input               debugB,
+    input               debugC,
+    input               debugD,
+
+    input               write_new_position, // If true, use the `new_*` values to overwrite the design's registers.
+    input   `F          new_playerX,
+    input   `F          new_playerY,
+    input   `F          new_facingX,
+    input   `F          new_facingY,
+    input   `F          new_vplaneX,
+    input   `F          new_vplaneY,
     
     output  reg [1:0]   red,   // Each of R, G, and B are 2bpp, for a total of 64 possible colours.
     output  reg [1:0]   green,
     output  reg [1:0]   blue,
-    output          hsync,
-    output          vsync,
-    output  [9:0]   px,   // Current pixel x.
-    output  [9:0]   py,   // Current pixel y.
-    output  [10:0]  frame_num,
-    output          speaker
+    output              hsync,
+    output              vsync,
+    output  [9:0]       px,   // Current pixel x.
+    output  [9:0]       py,   // Current pixel y.
+    output  [10:0]      frame_num,
+    output              speaker
 );
 
     localparam SPRITE_TRANSPARENT_COLOR = 6'b110011;
@@ -194,6 +199,18 @@ module raybox(
                 playerY <= playerY - playerMove;
             else if (moveB)
                 playerY <= playerY + playerMove;
+
+            if (debugA)
+                spriteX <= spriteX-1;
+
+            if (debugB)
+                spriteX <= spriteX+1;
+
+            if (debugC)
+                spriteD <= spriteD-32;
+
+            if (debugD)
+                spriteD <= spriteD+32;
         end
     end
     always @(negedge reset) begin
@@ -343,7 +360,7 @@ module raybox(
 
 
 
-    wire signed [9:0]  hso = h - spriteX; // h, offset by sprite centre (i.e. spriteX).
+    wire signed [9:0]  hso = h - spriteX + sprite_height; // h, offset by sprite centre (i.e. spriteX).
 
     wire `F     spriteHeightScale;    // Comes from reciprocal of spriteD.
     wire        spriteSatHeight;      //SMELL: Unused.
@@ -357,7 +374,7 @@ module raybox(
     wire [9:0]  sprite_height = spriteHeightScale[1:-8];    // Equiv. to: fixed-point heightScale value, *256, floored. Note that this can go up to 511.
     wire `F     spriteTextureScale = spriteD>>3; // >>3: Texture range is 0..63 (<<6), divided by height range 0..511 (>>9).
     wire `F2    stxf = `IF(hso) * spriteTextureScale;
-    wire [5:0]  sprite_texX = stxf[5:0]+32;
+    wire [5:0]  sprite_texX = stxf[5:0];
 
     wire signed [9:0] shs = sprite_height;  // sprite_height signed (for visibility comparisons).
 
@@ -374,7 +391,7 @@ module raybox(
         // Vertical axis is in range:
         ((sprite_height > HALF_HEIGHT) || ((HALF_HEIGHT-sprite_height) <= v && v <= (HALF_HEIGHT+sprite_height))) &&
         // Horizontal axis is in range:
-        hso >= (-shs) && hso < (shs) &&
+        hso >= 0 && hso < (sprite_height<<1) &&
         // Sprite is in front of nearest wall:
         !sprite_behind_wall;
 

@@ -776,6 +776,10 @@ void handle_control_inputs(bool prepare) {
     TB->m_core->moveL     = 0;
     TB->m_core->moveB     = 0;
     TB->m_core->moveR     = 0;
+    TB->m_core->debugA    = 0;
+    TB->m_core->debugB    = 0;
+    TB->m_core->debugC    = 0;
+    TB->m_core->debugD    = 0;
   }
   else {
 
@@ -808,6 +812,10 @@ void handle_control_inputs(bool prepare) {
     TB->m_core->moveL     |= keystate[SDL_SCANCODE_A   ] | gLockInputs[LOCK_L];
     TB->m_core->moveB     |= keystate[SDL_SCANCODE_S   ] | gLockInputs[LOCK_B];
     TB->m_core->moveR     |= keystate[SDL_SCANCODE_D   ] | gLockInputs[LOCK_R];
+    TB->m_core->debugA    |= keystate[SDL_SCANCODE_KP_4];
+    TB->m_core->debugB    |= keystate[SDL_SCANCODE_KP_6];
+    TB->m_core->debugC    |= keystate[SDL_SCANCODE_KP_2];
+    TB->m_core->debugD    |= keystate[SDL_SCANCODE_KP_8];
   }
 }
 
