@@ -201,16 +201,16 @@ module raybox(
                 playerY <= playerY + playerMove;
 
             if (debugA)
-                spriteX <= spriteX-1;
+                spriteX <= spriteX-1; // Move sprite left.
 
             if (debugB)
-                spriteX <= spriteX+1;
+                spriteX <= spriteX+1; // Move sprite right.
 
             if (debugC)
-                spriteD <= spriteD-32;
+                spriteD <= spriteD-32; // Pull sprite closer.
 
             if (debugD)
-                spriteD <= spriteD+32;
+                spriteD <= spriteD+32; // Push sprite back.
         end
     end
     always @(negedge reset) begin
@@ -350,12 +350,12 @@ module raybox(
 
     // Considering vertical position: Are we rendering wall or background in this pixel?
     wire        in_wall_comb = (wall_height > HALF_HEIGHT) || ((HALF_HEIGHT-wall_height) <= v && v <= (HALF_HEIGHT+wall_height));
+		wire in_wall = in_wall_comb;
 		
-		reg					in_wall;
-		
-		always @(posedge clk) begin
-			in_wall <= in_wall_comb;
-		end
+//		reg					in_wall;
+//		always @(posedge clk) begin
+//			in_wall <= in_wall_comb;
+//		end
 		
 
 

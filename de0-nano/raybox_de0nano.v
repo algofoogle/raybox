@@ -53,12 +53,22 @@ module raybox_de0nano(
   assign gpio1[7] = vsync;
   assign LED[7] = speaker;    // Visualise speaker on LED7.
   assign gpio1[9] = speaker;  // Also sound the speaker on GPIO_19.
+	
+	// Check for debug buttons: Because we have limited input buttons wired up,
+	// holding down a pair of opposing directional buttons will instead treat either
+	// of the remaining buttons as a "debug" input:
+	wire debug1 = !K[2] && !K[3]; // Two middle buttons are held, so we're in debugA/B mode.
+	wire debug2 = !K[1] && !K[4]; // Two outer buttons are held, so we're in debugC/D mode.
+	wire debugA = debug1 && !K[4];
+	wire debugB = debug1 && !K[1];
+	wire debugC = debug2 && !K[2];
+	wire debugD = debug2 && !K[3];
 
-  wire moveL = !K[3];
-  wire moveR = !K[2];
-  wire moveF = !K[4];
-  wire moveB = !K[1];
-
+  wire moveL = !debug1 && !debug2 && !K[3];
+  wire moveR = !debug1 && !debug2 && !K[2];
+  wire moveF = !debug1 && !debug2 && !K[4];
+  wire moveB = !debug1 && !debug2 && !K[1];
+	
   //SMELL: This is a bad way to do clock dividing.
   // ...i.e. if we can't make it a global clock, then instead use it as a clock enable.
   // Otherwise, can we use the built-in FPGA clock divider?
@@ -75,6 +85,11 @@ module raybox_de0nano(
     .moveR    (moveR),
     .moveF    (moveF),
     .moveB    (moveB),
+		
+    .debugA   (debugA),
+    .debugB   (debugB),
+    .debugC   (debugC),
+    .debugD   (debugD),
 		
 		.write_new_position(0),
 //		.new_playerX(0),
