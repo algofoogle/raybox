@@ -1037,7 +1037,8 @@ int main(int argc, char **argv) {
 
   //SMELL: This isn't actually used anymore because now the ROM data is embedded in the Verilog:
   // load_texture_rom("assets/blue-wall-222.png");
-  convert_image_rom_png_to_hex("assets/Wolf3D-guard-sprite-RGB222.png", "assets/sprite-xrgb-2222.hex", 64, 64);
+  //SMELL: Image conversion should now be done when needed with utils/asset_tool:
+  // convert_image_rom_png_to_hex("assets/Wolf3D-guard-sprite-RGB222.png", "assets/sprite-xrgb-2222.hex", 64, 64);
   
   SDL_SetRenderDrawColor(renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
   SDL_RenderClear(renderer);
