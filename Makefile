@@ -40,6 +40,7 @@ TOP = raybox
 # Stuff for simulation:
 #CFLAGS = -CFLAGS -municode
 #CFLAGS := -CFLAGS -DINSPECT_INTERNAL
+CC = g++
 SIM_LDFLAGS = -lSDL2 -lSDL2_ttf -lSDL2_image
 ifeq ($(OS),Windows_NT)
 	SIM_EXE = sim/obj_dir/V$(TOP).exe
@@ -96,6 +97,11 @@ $(SIM_EXE): $(MAIN_VSOURCES) sim/sim_main.cpp sim/main_tb.h sim/testbench.h
 		+define+RESET_AL \
 		+define+NOT_QUARTUS \
 		$(XDEFINES)
+
+
+utils/asset_tool: utils/asset_tool.cpp
+	$(CC) $^ -o $@ $(SIM_LDFLAGS)
+
 
 clean:
 	rm -rf sim_build
