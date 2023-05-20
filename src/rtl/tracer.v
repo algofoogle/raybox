@@ -71,17 +71,17 @@ module tracer(
     localparam INIT     = 0;
     localparam STEP     = 1;
     localparam CHECK    = 2;
-    localparam HIT1     = 3;  // For now, this has a 1 suffix because there are other repeats of this...
-    localparam HIT2     = 10;
-    localparam HIT3     = 11;
-    localparam STORE1   = 4;  
-    localparam STORE2   = 12;
-    localparam STORE3   = 13; // ...to try working around FPGA timing issues.
+    localparam HIT      = 3;  // For now, this has a 1 suffix because there are other repeats of this...
+    // localparam HIT2     = 10;
+    // localparam HIT3     = 11;
+    // localparam STORE1   = 4;  
+    // localparam STORE2   = 12;
+    localparam STORE    = 13; // ...to try working around FPGA timing issues.
     localparam DONE     = 5;
     localparam STOP     = 6;
     localparam LCLEAR   = 7;
     localparam RCLEAR   = 8;
-    localparam DEBUG    = 9;
+    // localparam DEBUG    = 9;
 
     reg [3:0] state;
     reg hit;
@@ -247,14 +247,6 @@ module tracer(
                     //SMELL: Could we get better precision with these trackers, by scaling?
                     trackXdist <= `FF(trackXinit);
                     trackYdist <= `FF(trackYinit);
-                    state <= DEBUG;
-                    // state <= STEP;
-                end
-                DEBUG: begin
-                        // $display(
-                        //     "Start: Frame:%d col:%d X:%d Y:%d trackXdist:%b trackYdist:%b -- rxi:%b ryi:%b rDX:%b rDY:%b",
-                        //     debug_frame, col_counter, mapX, mapY, trackXdist, trackYdist, rxi, ryi, rayDirX, rayDirY
-                        // );
                     state <= STEP;
                 end
                 STEP: begin
@@ -270,15 +262,6 @@ module tracer(
                         trackYdist <= trackYdist + stepYdist;
                         side <= 1;
                     end
-                    // if (stopY || (!stopX && trackXdist < trackYdist)) begin
-                    //     mapX <= rxi ? mapX+1 : mapX-1;
-                    //     trackXdist <= trackXdist + stepXdist;
-                    //     side <= 0;
-                    // end else begin
-                    //     mapY <= ryi ? mapY+1 : mapY-1;
-                    //     trackYdist <= trackYdist + stepYdist;
-                    //     side <= 1;
-                    // end
                     state <= CHECK;
                 end
                 CHECK: begin
@@ -292,35 +275,27 @@ module tracer(
                         //     );
                         // end
                         //SMELL: This extra step is in here to help with timing, i.e. setup violations.
-                        state <= HIT1;
+                        state <= HIT;
                     end else begin
                         // No hit yet; keep going.
                         state <= STEP;
                     end
                 end
-                HIT1: begin
+                HIT: begin
                     // Hit a wall.
-                    //store <= 1;
-                    //SMELL: Dummy cycle to complete the write before we update for next ray.
-                    state <= HIT2;
-                end
-                HIT2: begin
-                    //SMELL: Dummy cycle to complete the write before we update for next ray.
-                    state <= HIT3;
-                end
-                HIT3: begin
-                    //SMELL: Dummy cycle to complete the write before we update for next ray.
-                    state <= STORE1;
-                end
-                STORE1: begin
                     store <= 1;
-                    state <= STORE2;
-                end
-                STORE2: begin
                     //SMELL: Dummy cycle to complete the write before we update for next ray.
-                    state <= STORE3;
+                    state <= STORE;
                 end
-                STORE3: begin
+                // STORE: begin
+                //     store <= 1;
+                //     state <= STORE2;
+                // end
+                // STORE2: begin
+                //     //SMELL: Dummy cycle to complete the write before we update for next ray.
+                //     state <= STORE3;
+                // end
+                STORE: begin
                     // Store is finished.
                     store <= 0;
                     if (col_counter == 575) begin
