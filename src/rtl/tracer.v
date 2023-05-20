@@ -71,17 +71,8 @@ module tracer(
     localparam INIT     = 0;
     localparam STEP     = 1;
     localparam CHECK    = 2;
-    localparam HIT      = 3;  // For now, this has a 1 suffix because there are other repeats of this...
-    // localparam HIT2     = 10;
-    // localparam HIT3     = 11;
-    // localparam STORE1   = 4;  
-    // localparam STORE2   = 12;
-    localparam STORE    = 13; // ...to try working around FPGA timing issues.
-    localparam DONE     = 5;
-    localparam STOP     = 6;
-    localparam LCLEAR   = 7;
-    localparam RCLEAR   = 8;
-    // localparam DEBUG    = 9;
+    localparam NEXT     = 3;  // For now, this has a 1 suffix because there are other repeats of this...
+    localparam STOP     = 4;
 
     reg [3:0] state;
     reg hit;
@@ -216,31 +207,20 @@ module tracer(
             // modified through each iteration, as opposed to values that
             // are recalculated through each iteration.
 
-            col_counter <= 0;
-            // col_counter <= (640-512)/2; // For 512w, will range from 64..575
+            col_counter <= 64; // // col_counter <= (640-512)/2; for now we skip the first 64 columns to keep things simpler.
+            // Thus, we have a 512w range from 64..575.
 
             // Get the initial ray direction (column at screen LHS):
-            rayAddX <= -vplaneX<<<8;    //NOTE: <<<8 because it starts 256 columns to the left of centre.
+            rayAddX <= -vplaneX<<<8;    //NOTE: <<<8 because it starts 256 columns to the left of centre when we are working with 512w.
             rayAddY <= -vplaneY<<<8;
 
             side <= 0;
-            state <= LCLEAR;
+            state <= INIT;
         end else begin
             trace_cycle_count = trace_cycle_count + 1; //DEBUG
             // We must be enabled (and not in reset) so we're a free-running system now...
             case (state)
-                LCLEAR: begin
-                    store <= 1;
-                    col_counter <= col_counter + 1'b1;
-                    if (col_counter == 63) begin
-                        state <= INIT;
-                    end
-                end
                 INIT: begin
-                    // if (col_counter == 64) begin
-                    //     $display("Start trace at player X,Y:%f,%f", playerX*`SF, playerY*`SF);
-                    // end
-                    store <= 0;
                     // Get the cell the player's currently in:
                     mapX <= playerXint;
                     mapY <= playerYint;
@@ -268,39 +248,19 @@ module tracer(
                     // Check if we've hit a wall yet.
                     if (map_val!=0) begin
                         // Hit a wall.
-                        // if (col_counter >= 295 && col_counter <= 305) begin
-                        //     $display(
-                        //         "HIT:   Frame:%d col:%d X:%d Y:%d trackXdist:%b trackYdist:%b side:%b visualWallDist:%f heightScale:%f height:%d",
-                        //         debug_frame, col_counter, mapX, mapY, trackXdist, trackYdist, side, `Freal(visualWallDist), `Freal(heightScale), height
-                        //     );
-                        // end
-                        //SMELL: This extra step is in here to help with timing, i.e. setup violations.
-                        state <= HIT;
+                        state <= NEXT; // Finish the column; advance to next or stop.
+												store <= 1;
                     end else begin
                         // No hit yet; keep going.
                         state <= STEP;
                     end
                 end
-                HIT: begin
-                    // Hit a wall.
-                    store <= 1;
-                    //SMELL: Dummy cycle to complete the write before we update for next ray.
-                    state <= STORE;
-                end
-                // STORE: begin
-                //     store <= 1;
-                //     state <= STORE2;
-                // end
-                // STORE2: begin
-                //     //SMELL: Dummy cycle to complete the write before we update for next ray.
-                //     state <= STORE3;
-                // end
-                STORE: begin
+                NEXT: begin
                     // Store is finished.
                     store <= 0;
                     if (col_counter == 575) begin
                         // No more columns to trace.
-                        state <= DONE;
+                        state <= STOP;
                     end else begin
                         // Start the next column.
                         col_counter <= col_counter + 1'b1;
@@ -310,19 +270,7 @@ module tracer(
                         state <= INIT;
                     end
                 end
-                DONE: begin
-                    $display("Frame %d, finished tracing after %d clock cycles", debug_frame, trace_cycle_count);
-                    state <= RCLEAR;
-                    store <= 0;
-                end
-                RCLEAR: begin
-                    store <= 1;
-                    col_counter <= col_counter + 1'b1;
-                    if (col_counter == 639) begin
-                        state <= STOP;
-                        store <= 0;
-                    end
-                end
+								// If none of the above, must be STOP.
             endcase
         end
     end
