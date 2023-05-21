@@ -119,7 +119,7 @@ module raybox(
     reg `F      vplaneX /* verilator public */;     // Viewplane vector (typically 'facing' rotated clockwise by 90deg and then scaled).
     reg `F      vplaneY /* verilator public */;     // (which could also be expressed as vx=-fy, vy=fx, then scaled).
 
-    reg [9:0]   spriteX /* verilator public */;     // Centre point of sprite in screen coordinates.
+    wire [9:0]  spriteX /* verilator public */;     // Centre point of sprite in screen coordinates.
     // reg [10:0]  spriteXX /* verilator public */;
     // reg `F      spriteD /* verilator public */;     // Sprite distance (using same units as walls). Affects visibility and scaling.
 
@@ -389,7 +389,7 @@ module raybox(
     wire `F2    stxf = `IF(hso) * spriteTextureScale;
     wire [5:0]  sprite_texX = stxf[5:0];
 
-    wire signed [9:0] shs = sprite_height;  // sprite_height signed (for visibility comparisons).
+//    wire signed [9:0] shs = sprite_height;  // sprite_height signed (for visibility comparisons).
 
     wire [9:0]  sprite_basis = midline_offset+sprite_height;
     wire `F2    styf = `IF(sprite_basis) * spriteTextureScale;
