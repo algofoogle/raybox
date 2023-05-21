@@ -20,7 +20,7 @@
 `default_nettype none
 `timescale 1ns / 1ps
 
-//`define DUMMY_TEXTURE
+// `define DUMMY_SPRITE
 `ifdef NOT_QUARTUS
     `define SPRITE_FILE "assets/sprite-xrgb-2222.hex"
 `else
@@ -36,12 +36,9 @@ module sprite_rom #(
     output  [CHANNEL_BITS*3-1:0]  val
 );
 
-`ifdef DUMMY_TEXTURE
-    assign val = {
-        2'b11,
-        2'b00,
-        2'b00
-    };
+`ifdef DUMMY_SPRITE
+    // assign val = ((row[2:0] < ~col[2:0]) ^ (col[3:0] > row[3:0]) ^ col[5] ^ row[5]) ? 6'b111111 : 6'b010101;
+    assign val = ((col[5:0] < {row[0],row[1],row[2],row[3],row[4],row[5]}) ^ (col[3:0] > row[3:0]))  ? 6'b111111 : 6'b010101;
 `else
     //SMELL: This reg should be however many bits our output val is.
     // I've just made it 8-bit for now to match my data file.

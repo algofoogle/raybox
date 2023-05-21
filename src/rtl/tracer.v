@@ -108,10 +108,12 @@ module tracer(
     wire        invFaSat;
     reciprocal #(.M(`Qm),.N(`Qn)) flipA (.i_data(Fa), .i_abs(0), .o_data(invFa), .o_sat(invFaSat));
 
-    // t1 is on-screen distance from the player to the sprite; i.e. "s.dist":
+    // t1 is on-screen distance from the player to the sprite:
     wire `F2    t1 = Fa * invDet;
 
-    assign spriteDist = `FF(t1);
+    // If sprite screen position would overshoot, kill it by setting distance to 0:
+    wire `F     t2f = `FF(t2);
+    assign spriteDist = (t2f<`intF(4) && t2f>`intF(-4)) ? `FF(t1) : 0;
 
     // t2 is horizontal sprite position, displaced from screen centre, in game units (i.e. relative to vplane vector??).
     // Could also be defined as:
@@ -122,12 +124,14 @@ module tracer(
     wire `F2    t2 = Fb * invFa;
 
     // Sprite column (screen X) position should now be:
-    // 320 + 320*t2
-    // ...and we can assume that if abs(t2) > 1, then the sprite centre is off the screen,
-    // BUT BE AWARE that the sprite could still be PARTIALLY on-screen because of its width.
-    wire `F2    spriteColNorm = `FF(t2)*`intF(256);   //SMELL: Hard-coded and waste of bit width. Could use simple shifts-and-sums instead.
-    wire `F     spriteColScreenF = `FF(spriteColNorm) + `intF(320);
-    assign spriteCol = spriteColScreenF[10:0];
+    // 320 + w*t2 (where 'w' is screen width as represented by left and right vplane extensions).
+    // Assuming 512w, get spriteCol as relative to the facing direction (ie. screen centre),
+    // which is multiplied by 256 (half 512w) by virtue of right-shifted indices:
+    assign spriteCol = t2f[2:-8]; // 11 bits, per spriteCol def'n.
+    //NOTE: Above, we're only allowing the range of this to be based on -4 < t2 < 4,
+    // so a possible screen range of -1023 to +1023 (11 bits).
+    //NOTE: Even though abs(t2) > 1 means the sprite CENTRE is off the screen, the scaled
+    // width of the sprite might still be partially visible, hence the -4..4 range.
     
 
     reg `I      mapX, mapY;             // Map cell we're testing.

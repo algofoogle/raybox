@@ -358,7 +358,7 @@ module raybox(
         .spriteDist (tracer_spriteDist),
         .spriteCol  (tracer_spriteCol)
     );
-    assign spriteX = spriteXX[9:0];
+    // assign spriteX = spriteXX[9:0];
     // always @(negedge tick) begin
     //     $display("spriteXX=%d spriteDist=%f", spriteXX, `Freal(spriteD));
     // end
@@ -373,7 +373,7 @@ module raybox(
     // Considering vertical position: Are we rendering wall or background in this pixel?
     wire        in_wall = (wall_height > HALF_HEIGHT) || ((HALF_HEIGHT-wall_height) <= v && v <= (HALF_HEIGHT+wall_height));
 
-    wire signed [9:0]  hso = h - spriteX + sprite_height; // h, offset by sprite centre (i.e. spriteX).
+    wire signed [10:0]  hso = h - spriteXX - 320 + sprite_height; // h, offset by sprite centre (i.e. spriteX).
 
     wire `F     spriteHeightScale;    // Comes from reciprocal of spriteD.
     wire        spriteSatHeight;      //SMELL: Unused.
@@ -404,21 +404,21 @@ module raybox(
         // Vertical axis is in range:
         ((sprite_height > HALF_HEIGHT) || ((HALF_HEIGHT-sprite_height) <= v && v <= (HALF_HEIGHT+sprite_height))) &&
         // Horizontal axis is in range:
-        hso >= 0 && hso < (sprite_height<<1) &&
+        hso >= 0 && hso < {sprite_height,1'b0} &&
         // Sprite is in front of nearest wall:
         !sprite_behind_wall &&
         // Sprite is in front of us, not behind.
-        spriteD > 0;
+        spriteD >= `intF(1); //SMELL: Fix sprite scaling so we can go down to 0.5 distance, i.e. grow to 16x instead of just 8x.
 
 
-    // always @(posedge clk) begin
-    //     if (debug_frame_count == 10 && h==160 && (v==0||v==480)) begin
-    //         $display("================================================================");
-    //     end
-    //     if (debug_frame_count == 10 && h==160 && v<480) begin
-    //         $display("v=%d hso=%d sprite_texX=%d sprite_texY=%d color=%b in_sprite=%b", v, hso, sprite_texX, sprite_texY, {sprite_r,sprite_g,sprite_b}, in_sprite);
-    //     end
-    // end
+    always @(posedge clk) begin
+        if (debug_frame_count == 10 && h==320 && (v==0||v==480)) begin
+            $display("================================================================");
+        end
+        if (debug_frame_count == 10 && h==320 && v<480) begin
+            $display("v=%d hso=%d sprite_texX=%d sprite_texY=%d color=%b in_sprite=%b", v, hso, sprite_texX, sprite_texY, {sprite_r,sprite_g,sprite_b}, in_sprite);
+        end
+    end
 
     // Are we in the border area?
     //SMELL: This conceals some slight rendering glitches that we really should fix.
