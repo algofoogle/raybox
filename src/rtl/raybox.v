@@ -411,14 +411,14 @@ module raybox(
         spriteD >= `intF(1); //SMELL: Fix sprite scaling so we can go down to 0.5 distance, i.e. grow to 16x instead of just 8x.
 
 
-    always @(posedge clk) begin
-        if (debug_frame_count == 10 && h==320 && (v==0||v==480)) begin
-            $display("================================================================");
-        end
-        if (debug_frame_count == 10 && h==320 && v<480) begin
-            $display("v=%d hso=%d sprite_texX=%d sprite_texY=%d color=%b in_sprite=%b", v, hso, sprite_texX, sprite_texY, {sprite_r,sprite_g,sprite_b}, in_sprite);
-        end
-    end
+    // always @(posedge clk) begin
+    //     if (debug_frame_count == 10 && h==320 && (v==0||v==480)) begin
+    //         $display("================================================================");
+    //     end
+    //     if (debug_frame_count == 10 && h==320 && v<480) begin
+    //         $display("v=%d hso=%d sprite_texX=%d sprite_texY=%d color=%b in_sprite=%b", v, hso, sprite_texX, sprite_texY, {sprite_r,sprite_g,sprite_b}, in_sprite);
+    //     end
+    // end
 
     // Are we in the border area?
     //SMELL: This conceals some slight rendering glitches that we really should fix.
@@ -489,8 +489,8 @@ module raybox(
         in_player_cell  ?   0 :
         in_map_gridline ?   0 :
         in_map_overlay  ?   0 :
-        in_sprite       ?   sprite_r :
         in_border       ?   2'b01 :             // Border is dark purple.
+        in_sprite       ?   sprite_r :
         dead_column     ?   2'b11 :             // 0-height columns are filled with magenta.
         in_wall         ?   wall_r :
                             background;
@@ -501,8 +501,8 @@ module raybox(
         in_player_cell  ?   2'b01 :             // Player cell in map is dark green.
         in_map_gridline ?   0 :
         in_map_overlay  ?   0 :
-        in_sprite       ?   sprite_g :
         in_border       ?   0 :
+        in_sprite       ?   sprite_g :
         dead_column     ?   0 :
         in_wall         ?   wall_g :
                             background;
@@ -513,8 +513,8 @@ module raybox(
         in_player_cell  ?   0 :
         in_map_gridline ?   2'b01 :             // Map gridlines are dark blue.
         in_map_overlay  ?   map_val :           // Map cell (colour).
-        in_sprite       ?   sprite_b :
         in_border       ?   2'b01 :             // Border is dark purple.
+        in_sprite       ?   sprite_b :
         dead_column     ?   2'b11 :             // 0-height columns are filled with magenta.
         in_wall         ?   wall_b :
                             background;         // Ceiling/floor background.

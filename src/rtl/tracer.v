@@ -289,7 +289,7 @@ module tracer(
                         if (col_counter == 575) begin
                             //NOTE: trace_cycle_count+2 to ensure DONE state will be covered:
                             $display("Frame %d finished tracing after %d clocks", debug_frame, trace_cycle_count+2);
-                            $display("\t\t\t\t\t\t\t\t  spriteDist=%f t2=%f spriteCol=%d", `FrealS(spriteDist), `FrealS(t2), spriteCol);
+                            $display("\t\t\t\t\t\t\t\t  spriteDist=%f t2=%f spriteCol=%d", `FrealS(spriteDist), `FrealS(t2), $signed(spriteCol));
                         end
                         state <= DONE; // Finish the column; advance to next or stop.
                         store <= 1;
