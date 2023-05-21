@@ -120,8 +120,8 @@ module raybox(
     reg `F      vplaneY /* verilator public */;     // (which could also be expressed as vx=-fy, vy=fx, then scaled).
 
     reg [9:0]   spriteX /* verilator public */;     // Centre point of sprite in screen coordinates.
-    reg `F      spriteD /* verilator public */;     // Sprite distance (using same units as walls). Affects visibility and scaling.
-
+    // reg [10:0]  spriteXX /* verilator public */;
+    // reg `F      spriteD /* verilator public */;     // Sprite distance (using same units as walls). Affects visibility and scaling.
 
     assign speaker = 0; // Speaker is unused for now.
 
@@ -161,8 +161,8 @@ module raybox(
             vplaneX <= vplaneXstart;
             vplaneY <= vplaneYstart;
 
-            spriteX <= 320;
-            spriteD <= `intF(3);
+            // spriteX <= 320;
+            // spriteD <= `intF(3);
 
             debug_frame_count = 0;
 
@@ -200,17 +200,14 @@ module raybox(
             else if (moveB)
                 playerY <= playerY + playerMove;
 
-            if (debugA)
-                spriteX <= spriteX-1; // Move sprite left.
-
-            if (debugB)
-                spriteX <= spriteX+1; // Move sprite right.
-
-            if (debugC)
-                spriteD <= spriteD-32; // Pull sprite closer.
-
-            if (debugD)
-                spriteD <= spriteD+32; // Push sprite back.
+            // if (debugA)
+            //     spriteX <= spriteX-1; // Move sprite left.
+            // if (debugB)
+            //     spriteX <= spriteX+1; // Move sprite right.
+            // if (debugC)
+            //     spriteD <= spriteD-32; // Pull sprite closer.
+            // if (debugD)
+            //     spriteD <= spriteD+32; // Push sprite back.
         end
     end
     always @(negedge reset) begin
@@ -244,6 +241,10 @@ module raybox(
     wire                ceiling     = v<HALF_HEIGHT;            // Are we in the ceiling or floor part of the frame?
     wire [1:0]          background  = ceiling ? 2'b01 : 2'b10;  // Ceiling is dark grey, floor is light grey.
     wire                trace_we;                               // trace_buffer Write Enable; tracer-driven. When off, trace_buffer stays in read mode.
+    wire                tracer_spriteStore;
+    wire [2:0]          tracer_spriteIndex;
+    wire `F             tracer_spriteDist;
+    wire [10:0]         tracer_spriteCol;
 
     // During VBLANK, tracer writes to memory.
     // During visible, memory reads get wall column heights/sides to render.
@@ -260,6 +261,15 @@ module raybox(
         .oe     (!trace_we)
     );
 
+    sprite_buffer screen_sprites(
+        .clk    (clk),
+        .we     (tracer_spriteStore),
+        .oe     (!tracer_spriteStore),
+        .index  (spriteIndex),
+        .sdist  (spriteD),
+        .scol   (spriteXX)
+    );
+
     // Trace column is selected either by screen render read loop, or by tracer state machine:
     wire [9:0]          buffer_column = visible ? h : tracer_addr;
     wire [9:0]          tracer_addr;    // Driven by tracer directly...
@@ -272,6 +282,10 @@ module raybox(
     wire                wall_side   = trace_we ? tracer_side : 1'bz;
     wire [`DII:`DFI]    wall_dist   = trace_we ? tracer_dist : { `Dbits{1'bz} };
     wire [5:0]          wall_texX   = trace_we ? tracer_texX : 6'bz;
+
+    wire [2:0]          spriteIndex = visible ? 0 : tracer_spriteIndex;
+    wire `F             spriteD     = tracer_spriteStore ? tracer_spriteDist    : { `Qmn{1'bz} };
+    wire [10:0]         spriteXX    = tracer_spriteStore ? tracer_spriteCol     : 11'bz;
 
     wire `F             heightScale;    // Comes from reciprocal of wall_dist.
     wire                satHeight;      //SMELL: Unused.
@@ -320,26 +334,34 @@ module raybox(
     wire [1:0] map_val;
     tracer tracer(
         // Inputs to tracer:
-        .clk    (clk),
-        .reset  (reset),
-        .enable (vblank),
-        .map_val(map_val),
-        .playerX(playerX),
-        .playerY(playerY),
-        .facingX(facingX),
-        .facingY(facingY),
-        .vplaneX(vplaneX),
-        .vplaneY(vplaneY),
+        .clk        (clk),
+        .reset      (reset),
+        .enable     (vblank),
+        .map_val    (map_val),
+        .playerX    (playerX),
+        .playerY    (playerY),
+        .facingX    (facingX),
+        .facingY    (facingY),
+        .vplaneX    (vplaneX),
+        .vplaneY    (vplaneY),
         .debug_frame(frame),
         // Outputs from tracer:
-        .map_col(map_col),
-        .map_row(map_row),
-        .store  (trace_we),
-        .column (tracer_addr),
-        .side   (tracer_side),
-        .vdist  (tracer_dist),
-        .tex    (tracer_texX)
+        .map_col    (map_col),
+        .map_row    (map_row),
+        .store      (trace_we),
+        .column     (tracer_addr),
+        .side       (tracer_side),
+        .vdist      (tracer_dist),
+        .tex        (tracer_texX),
+        .spriteStore(tracer_spriteStore),
+        .spriteIndex(tracer_spriteIndex),
+        .spriteDist (tracer_spriteDist),
+        .spriteCol  (tracer_spriteCol)
     );
+    assign spriteX = spriteXX[9:0];
+    // always @(negedge tick) begin
+    //     $display("spriteXX=%d spriteDist=%f", spriteXX, `Freal(spriteD));
+    // end
 
     // Map ROM, both for tracing, and for optional show_map overlay:
     map_rom map(
@@ -349,16 +371,7 @@ module raybox(
     );
 
     // Considering vertical position: Are we rendering wall or background in this pixel?
-    wire        in_wall_comb = (wall_height > HALF_HEIGHT) || ((HALF_HEIGHT-wall_height) <= v && v <= (HALF_HEIGHT+wall_height));
-		wire in_wall = in_wall_comb;
-		
-//		reg					in_wall;
-//		always @(posedge clk) begin
-//			in_wall <= in_wall_comb;
-//		end
-		
-
-
+    wire        in_wall = (wall_height > HALF_HEIGHT) || ((HALF_HEIGHT-wall_height) <= v && v <= (HALF_HEIGHT+wall_height));
 
     wire signed [9:0]  hso = h - spriteX + sprite_height; // h, offset by sprite centre (i.e. spriteX).
 
@@ -393,7 +406,9 @@ module raybox(
         // Horizontal axis is in range:
         hso >= 0 && hso < (sprite_height<<1) &&
         // Sprite is in front of nearest wall:
-        !sprite_behind_wall;
+        !sprite_behind_wall &&
+        // Sprite is in front of us, not behind.
+        spriteD > 0;
 
 
     // always @(posedge clk) begin
@@ -448,15 +463,6 @@ module raybox(
         .val( {sprite_r, sprite_g, sprite_b} )
     );
     
-    // wire [1:0]  wall_r = 0;
-    // wire [1:0]  wall_g =
-    //     wall_side ? {~wall_texX[2]^wall_texY[2], 1'b1} :  // Bright.
-    //                 {~wall_texX[2]^wall_texY[2], 1'b0};   // Dark.
-
-    // wire [1:0]  wall_b =
-    //     wall_side ? {wall_texX[2]^wall_texY[2], 1'b1} :  // Bright wall side.
-    //                 {wall_texX[2]^wall_texY[2], 1'b0};   // Dark wall side.
-
 
 `ifdef ENABLE_DEBUG
     wire signed [10:0]  debug_offset  = {1'b0,h} - (640 - (1<<DEBUG_SCALE)*(`Qm+`Qn) - 1);

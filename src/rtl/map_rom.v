@@ -18,6 +18,8 @@
 `timescale 1ns / 1ps
 
 `define DUMMY_MAP
+// `define EMPTY_MAP   // Outer walls only.
+// `define INF_MAP     // Map with a hole in it, allowing tracer to overflow.
 
 //NOTE: If we actually wanted to store the game map statically in ROM (or RAM)
 // then we could get away with 14x14 if we assume the outer edge is always solid wall.
@@ -37,12 +39,19 @@ module map_rom #(
 `ifdef DUMMY_MAP
     assign val = 
         (
-            ((row==0 || row==15 || col==0 || col==15) ||
+            ((row==0 || row==15 || col==0 || col==15) ||    // Outer box.
+    `ifdef EMPTY_MAP
+            0)
+        `ifdef INF_MAP
+            && (col!=7) && (col!=8)
+        `endif
+    `else
             ((~row[2:0]==col[2:0]) & ~row[3] & ~col[3]) ||
             (((
                 (row[1] ^ col[2]) ^ (row[0] & col[1])
             ) & row[2] & col[1]) | (~row[0]&~col[0]))
             & (row[2]^~col[2]))
+    `endif
         ) ? 2'b11 : 2'b00;
 `else
     reg [7:0]   dummy_memory [0:ROWS-1][0:COLS-1];

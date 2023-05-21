@@ -34,18 +34,19 @@
 // i.e. "negative" numbers compare to be greater than all positive numbers:
 `define UF          unsigned [`QMI:-`Qn]
 
-`define intF(i)     ((i)<<<`Qn)         // Convert const int to F.
-`define Fint(f)     ((f)>>>`Qn)         // Convert F to int.
-
-`define realF(r)    (((r)*(2.0**`Qn)))
-`define Freal(f)    ((f)*(2.0**-`Qn))
-
 `define FF(f)       f[`QMI:-`Qn]        // Get full F out of something bigger (e.g. F2).
 `define FI(f)       f[`QMI:0]           // Extract I part from an F.
 `define IF(i)       {i,`Qn'b0}          // Expand I part to a full F.
 
 `define Ff(f)       f[-1:-`Qn]          // Extract fractional part from an F. //SMELL: Discards sign!
 `define fF(f)       {`Qm'b0,f}          // Build a full F from just a fractional part.
+
+`define intF(i)     ((i)<<<`Qn)         // Convert const int to F.
+`define Fint(f)     ((f)>>>`Qn)         // Convert F to int.
+
+`define realF(r)    (((r)*(2.0**`Qn)))
+`define Freal(f)    ((`FF(f))*(2.0**-`Qn))
+`define FrealS(f)   ($signed(`FF(f))*(2.0**-`Qn)) // Signed helper.
 
 `endif //_FIXED_POINT_PARAMS__H_
 

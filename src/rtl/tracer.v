@@ -55,26 +55,80 @@ module tracer(
     input       `F      vplaneY,
     input       [10:0]  debug_frame,
 
+    // Map ROM read access:
+    output      [3:0]   map_col,
+    output      [3:0]   map_row,
+    input       [1:0]   map_val,
+
+    // Trace buffer write access:
     output reg          store,              // Driven high when we've got a result to store.
     output      [9:0]   column,             // The column we'll write to in the trace_buffer.
     output reg          side,               // The side data we'll write for the respective column.
-    output      [15:0]  vdist,							// Distance this column is from the viewer.
+    output      [15:0]  vdist,              // Distance this column is from the viewer.
     output      [5:0]   tex,                // X coordinate (column) of wall's texture where the hit occurred.
 
-    // Map ROM access:
-    output      [3:0]   map_col,
-    output      [3:0]   map_row,
-    input       [1:0]   map_val
+    // Sprite buffer write access:
+    output reg          spriteStore,
+    output reg  [2:0]   spriteIndex,        //SMELL: Currently not supported.
+    output      `F      spriteDist,
+    output      [10:0]  spriteCol
 );
 
-    localparam PREP     = 0;
-    localparam STEP     = 1;
-    localparam TEST     = 2;
-    localparam DONE     = 3;  // For now, this has a 1 suffix because there are other repeats of this...
+    localparam SPRITE   = 0;
+    localparam PREP     = 1;
+    localparam STEP     = 2;
+    localparam TEST     = 3;
+    localparam DONE     = 4;  // For now, this has a 1 suffix because there are other repeats of this...
     
-    reg [1:0] state;
+    reg [2:0] state;
     reg hit;
     reg [9:0] col_counter;
+
+/* verilator lint_off REALCVT */
+    localparam `F spriteX = `realF(1.5);
+    localparam `F spriteY = `realF(9.5);
+/* verilator lint_on REALCVT */
+
+    // Calculate vector from player to sprite.
+    wire `F     Dx = spriteX - playerX;
+    wire `F     Dy = spriteY - playerY;
+
+    // Calculate determinant of matrix |vplaneX vplaneY, facingX facingY|
+    // and get its reciprocal, so we can effectively use it as a numerator:
+    wire `F2    det = vplaneX*facingY - vplaneY*facingX;
+    wire `F     invDet;
+    wire        invDetSat;
+    reciprocal #(.M(`Qm),.N(`Qn)) flipDet (.i_data(`FF(det)), .i_abs(0), .o_data(invDet), .o_sat(invDetSat));
+
+    // I guess here we're calculating the determinant of matrix |vplaneX vplaneY, Dx Dy|
+    //NOTE: The following is a of a very similar structure to that above; we could logic-share this to save on area.
+    wire `F2    a = vplaneX*Dy - vplaneY*Dx;
+    wire `F     Fa = `FF(a);
+    wire `F     invFa;
+    wire        invFaSat;
+    reciprocal #(.M(`Qm),.N(`Qn)) flipA (.i_data(Fa), .i_abs(0), .o_data(invFa), .o_sat(invFaSat));
+
+    // t1 is on-screen distance from the player to the sprite; i.e. "s.dist":
+    wire `F2    t1 = Fa * invDet;
+
+    assign spriteDist = `FF(t1);
+
+    // t2 is horizontal sprite position, displaced from screen centre, in game units (i.e. relative to vplane vector??).
+    // Could also be defined as:
+    // ((Dx*facingY-Dy*facingX)*invDet)/t1, i.e.
+    // (Dx*facingY-Dy*facingX) / (Fa)
+    wire `F2    b = Dx*facingY - Dy*facingX;
+    wire `F     Fb = `FF(b);
+    wire `F2    t2 = Fb * invFa;
+
+    // Sprite column (screen X) position should now be:
+    // 320 + 320*t2
+    // ...and we can assume that if abs(t2) > 1, then the sprite centre is off the screen,
+    // BUT BE AWARE that the sprite could still be PARTIALLY on-screen because of its width.
+    wire `F2    spriteColNorm = `FF(t2)*`intF(256);   //SMELL: Hard-coded and waste of bit width. Could use simple shifts-and-sums instead.
+    wire `F     spriteColScreenF = `FF(spriteColNorm) + `intF(320);
+    assign spriteCol = spriteColScreenF[10:0];
+    
 
     reg `I      mapX, mapY;             // Map cell we're testing.
 
@@ -177,6 +231,8 @@ module tracer(
             trace_cycle_count = 0; //DEBUG
             // Prime the system...
             store <= 0;
+            spriteStore <= 0;
+            spriteIndex <= 0;
             // The values below are starting conditions which are then
             // modified through each iteration, as opposed to values that
             // are recalculated through each iteration.
@@ -189,12 +245,18 @@ module tracer(
             rayAddY <= -vplaneY<<<8;
 
             side <= 0;
-            state <= PREP;
+            state <= SPRITE;
         end else begin
             trace_cycle_count = trace_cycle_count + 1; //DEBUG
             // We must be enabled (and not in reset) so we're a free-running system now...
             case (state)
+                SPRITE: begin
+                    spriteStore <= 1;
+                    //NOTE: spriteDist and spriteCol are worked out as combo logic above.
+                    state <= PREP;
+                end
                 PREP: begin
+                    spriteStore <= 0;
                     // Get the cell the player's currently in:
                     mapX <= playerXint;
                     mapY <= playerYint;
@@ -220,8 +282,13 @@ module tracer(
                     // Check if we've hit a wall yet.
                     if (map_val!=0) begin
                         // Hit a wall.
+                        if (col_counter == 575) begin
+                            //NOTE: trace_cycle_count+2 to ensure DONE state will be covered:
+                            $display("Frame %d finished tracing after %d clocks", debug_frame, trace_cycle_count+2);
+                            $display("\t\t\t\t\t\t\t\t  spriteDist=%f t2=%f spriteCol=%d", `FrealS(spriteDist), `FrealS(t2), spriteCol);
+                        end
                         state <= DONE; // Finish the column; advance to next or stop.
-												store <= 1;
+                        store <= 1;
                     end else begin
                         // No hit yet; keep going.
                         state <= STEP;

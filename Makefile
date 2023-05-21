@@ -22,6 +22,7 @@ MAIN_VSOURCES = \
 	src/rtl/raybox.v \
 	src/rtl/vga_sync.v \
 	src/rtl/trace_buffer.v \
+	src/rtl/sprite_buffer.v \
 	src/rtl/map_rom.v \
 	src/rtl/tracer.v \
 	src/rtl/lzc_a.v \
