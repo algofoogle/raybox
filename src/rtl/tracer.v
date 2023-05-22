@@ -125,7 +125,7 @@ module tracer(
 
     // Sprite column (screen X) position should now be:
     // 320 + w*t2 (where 'w' is screen width as represented by left and right vplane extensions).
-    // Assuming 512w, get spriteCol as relative to the facing direction (ie. screen centre),
+    // Get spriteCol as relative to the facing direction (ie. screen centre),
     // which is multiplied by 256 (half 512w) by virtue of right-shifted indices:
     assign spriteCol = t2f[2:-8]; // 11 bits, per spriteCol def'n.
     //NOTE: Above, we're only allowing the range of this to be based on -4 < t2 < 4,
@@ -136,14 +136,14 @@ module tracer(
 
     reg `I      mapX, mapY;             // Map cell we're testing.
 
-    reg `F      rayAddX, rayAddY;       // Ray direction offset (full precision; before scaling).
+    reg `F      rayAddendX, rayAddendY;       // Ray direction offset (full precision; before scaling).
     // `rayAdd` will start off being -vplane*(columns/2) and will gradually accumulate another
     // +vplane per column until it reaches +vplane*(columns/2). It gets scaled back to a normal
     // fractional value with >>>8 when it gets added to `facing` in order to yield `rayDir`.
 
     // Ray direction vector:
-    wire `F     rayDirX = facingX + (rayAddX>>>8);  //NOTE: >>>8 is based on 256 columns EITHER SIDE of screen centre.
-    wire `F     rayDirY = facingY + (rayAddY>>>8);
+    wire `F     rayDirX = facingX + (rayAddendX>>>8);  //NOTE: >>>8 is based on 256 columns EITHER SIDE of screen centre.
+    wire `F     rayDirY = facingY + (rayAddendY>>>8);
 
     // Ray dir incrementing/decrementing flags per X and Y:
     wire        rxi =  rayDirX > 0;    // Is ray X direction positive?
@@ -241,12 +241,13 @@ module tracer(
             // modified through each iteration, as opposed to values that
             // are recalculated through each iteration.
 
-            col_counter <= 64; // // col_counter <= (640-512)/2; for now we skip the first 64 columns to keep things simpler.
+            col_counter <= 0; // // col_counter <= (640-512)/2; for now we skip the first 64 columns to keep things simpler.
             // Thus, we have a 512w range from 64..575.
 
-            // Get the initial ray direction (column at screen LHS):
-            rayAddX <= -vplaneX<<<8;    //NOTE: <<<8 because it starts 256 columns to the left of centre when we are working with 512w.
-            rayAddY <= -vplaneY<<<8;
+            // Get the initial ray direction (column at screen LHS)...
+            // This is the same as rayAddendX = -vplaneX*320:
+            rayAddendX <= -(vplaneX<<<8)-(vplaneX<<<6);
+            rayAddendY <= -(vplaneY<<<8)-(vplaneY<<<6);
 
             side <= 0;
             state <= SPRITE;
@@ -286,7 +287,7 @@ module tracer(
                     // Check if we've hit a wall yet.
                     if (map_val!=0) begin
                         // Hit a wall.
-                        if (col_counter == 575) begin
+                        if (col_counter == 639) begin
                             //NOTE: trace_cycle_count+2 to ensure DONE state will be covered:
                             $display("Frame %d finished tracing after %d clocks", debug_frame, trace_cycle_count+2);
                             $display("\t\t\t\t\t\t\t\t  spriteDist=%f t2=%f spriteCol=%d", `FrealS(spriteDist), `FrealS(t2), $signed(spriteCol));
@@ -301,15 +302,15 @@ module tracer(
                 DONE: begin
                     // Store is finished.
                     store <= 0;
-                    if (col_counter == 575) begin
+                    if (col_counter == 639) begin
                         // No more columns to trace; hang here.
                         state <= DONE;
                     end else begin
                         // Start the next column.
                         col_counter <= col_counter + 1'b1;
                         // Advance the ray dir offset (rayAdd) by 1 whole vplane vector value:
-                        rayAddX <= rayAddX + vplaneX;
-                        rayAddY <= rayAddY + vplaneY;
+                        rayAddendX <= rayAddendX + vplaneX;
+                        rayAddendY <= rayAddendY + vplaneY;
                         state <= PREP;
                     end
                 end

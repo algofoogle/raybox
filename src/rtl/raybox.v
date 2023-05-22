@@ -62,6 +62,8 @@ module raybox(
 
     localparam DEBUG_SCALE          = 3;                        // Power of 2 scaling for debug overlay.
 
+    localparam SCREEN_WIDTH         = 640;
+    localparam HALF_WIDTH           = SCREEN_WIDTH>>1;
     localparam SCREEN_HEIGHT        = 480;
     localparam HALF_HEIGHT          = SCREEN_HEIGHT>>1;
     localparam MAP_SCALE            = 4;                        // Power of 2 scaling for map overlay size.
@@ -120,8 +122,6 @@ module raybox(
     reg `F      vplaneY /* verilator public */;     // (which could also be expressed as vx=-fy, vy=fx, then scaled).
 
     wire [9:0]  spriteX /* verilator public */;     // Centre point of sprite in screen coordinates.
-    // reg [10:0]  spriteXX /* verilator public */;
-    // reg `F      spriteD /* verilator public */;     // Sprite distance (using same units as walls). Affects visibility and scaling.
 
     assign speaker = 0; // Speaker is unused for now.
 
@@ -161,9 +161,6 @@ module raybox(
             vplaneX <= vplaneXstart;
             vplaneY <= vplaneYstart;
 
-            // spriteX <= 320;
-            // spriteD <= `intF(3);
-
             debug_frame_count = 0;
 
         end else if (v < SCREEN_HEIGHT && write_new_position) begin
@@ -199,15 +196,6 @@ module raybox(
                 playerY <= playerY - playerMove;
             else if (moveB)
                 playerY <= playerY + playerMove;
-
-            // if (debugA)
-            //     spriteX <= spriteX-1; // Move sprite left.
-            // if (debugB)
-            //     spriteX <= spriteX+1; // Move sprite right.
-            // if (debugC)
-            //     spriteD <= spriteD-32; // Pull sprite closer.
-            // if (debugD)
-            //     spriteD <= spriteD+32; // Push sprite back.
         end
     end
     always @(negedge reset) begin
@@ -266,8 +254,8 @@ module raybox(
         .we     (tracer_spriteStore),
         .oe     (!tracer_spriteStore),
         .index  (spriteIndex),
-        .sdist  (spriteD),
-        .scol   (spriteXX)
+        .sdist  (spriteDist),
+        .scol   (spriteCol)
     );
 
     // Trace column is selected either by screen render read loop, or by tracer state machine:
@@ -284,8 +272,8 @@ module raybox(
     wire [5:0]          wall_texX   = trace_we ? tracer_texX : 6'bz;
 
     wire [2:0]          spriteIndex = visible ? 0 : tracer_spriteIndex;
-    wire `F             spriteD     = tracer_spriteStore ? tracer_spriteDist    : { `Qmn{1'bz} };
-    wire [10:0]         spriteXX    = tracer_spriteStore ? tracer_spriteCol     : 11'bz;
+    wire `F             spriteDist  = tracer_spriteStore ? tracer_spriteDist    : { `Qmn{1'bz} };
+    wire [10:0]         spriteCol   = tracer_spriteStore ? tracer_spriteCol     : 11'bz;
 
     wire `F             heightScale;    // Comes from reciprocal of wall_dist.
     wire                satHeight;      //SMELL: Unused.
@@ -358,10 +346,6 @@ module raybox(
         .spriteDist (tracer_spriteDist),
         .spriteCol  (tracer_spriteCol)
     );
-    // assign spriteX = spriteXX[9:0];
-    // always @(negedge tick) begin
-    //     $display("spriteXX=%d spriteDist=%f", spriteXX, `Freal(spriteD));
-    // end
 
     // Map ROM, both for tracing, and for optional show_map overlay:
     map_rom map(
@@ -373,19 +357,19 @@ module raybox(
     // Considering vertical position: Are we rendering wall or background in this pixel?
     wire        in_wall = (wall_height > HALF_HEIGHT) || ((HALF_HEIGHT-wall_height) <= v && v <= (HALF_HEIGHT+wall_height));
 
-    wire signed [10:0]  hso = h - spriteXX - 320 + sprite_height; // h, offset by sprite centre (i.e. spriteX).
+    wire signed [10:0]  hso = h - spriteCol - HALF_WIDTH + sprite_height; // h, offset by sprite centre (i.e. spriteX).
 
-    wire `F     spriteHeightScale;    // Comes from reciprocal of spriteD.
+    wire `F     spriteHeightScale;    // Comes from reciprocal of spriteDist.
     wire        spriteSatHeight;      //SMELL: Unused.
     //SMELL: Can this reciprocal use `DI and `DF or something similar instead, so we don't need to pad it out to a full Q12.12?
     reciprocal #(.M(`Qm),.N(`Qn)) sprite_scaler (
-        .i_data (spriteD),
+        .i_data (spriteDist),
         .i_abs  (1),
         .o_data (spriteHeightScale),
         .o_sat  (spriteSatHeight)
     );
     wire [9:0]  sprite_height = spriteHeightScale[1:-8];    // Equiv. to: fixed-point heightScale value, *256, floored. Note that this can go up to 511.
-    wire `F     spriteTextureScale = spriteD>>3; // >>3: Texture range is 0..63 (<<6), divided by height range 0..511 (>>9).
+    wire `F     spriteTextureScale = spriteDist>>3; // >>3: Texture range is 0..63 (<<6), divided by height range 0..511 (>>9).
     wire `F2    stxf = `IF(hso) * spriteTextureScale;
     wire [5:0]  sprite_texX = stxf[5:0];
 
@@ -408,7 +392,7 @@ module raybox(
         // Sprite is in front of nearest wall:
         !sprite_behind_wall &&
         // Sprite is in front of us, not behind.
-        spriteD >= `intF(1); //SMELL: Fix sprite scaling so we can go down to 0.5 distance, i.e. grow to 16x instead of just 8x.
+        spriteDist >= `realF(0.5); // This allows the sprite to grow to 16x16 pixels, and works up to about 0.375 units away from the cell an actor stands in.
 
 
     // always @(posedge clk) begin
@@ -422,7 +406,7 @@ module raybox(
 
     // Are we in the border area?
     //SMELL: This conceals some slight rendering glitches that we really should fix.
-    wire        in_border = h<66 || h>=574;
+    wire        in_border = 0;//h<66 || h>=574;
 
     // Is this a dead column, i.e. height is 0? This shouldn't happen normally,
     // but if it does (either due to a glitch or debug purpose) then it should render

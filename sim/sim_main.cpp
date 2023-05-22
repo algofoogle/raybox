@@ -379,10 +379,12 @@ void recalc_override_vectors(const Uint8* k, int mouseX, int mouseY) {
   const double playerWalk         = move_quantum * 10.0; // Should be 0.01953125
   const double playerRun          = move_quantum * 18.0;
   const double playerMove         = playerWalk;
-  double m = k[SDL_SCANCODE_LSHIFT] ? playerRun : playerMove;
+  bool fast = k[SDL_SCANCODE_LSHIFT];
+  double m = fast ? playerRun : playerMove;
   m *= gMotionMultiplier;
   double r = key_rotate_speed;
   r *= gMotionMultiplier;
+  if (fast) r *= 1.8;
   if (k[SDL_SCANCODE_LEFT])   rotate_override_vectors( r);
   if (k[SDL_SCANCODE_RIGHT])  rotate_override_vectors(-r);
   if (mouseX != 0)            rotate_override_vectors(-mouse_rotate_speed * double(mouseX));
