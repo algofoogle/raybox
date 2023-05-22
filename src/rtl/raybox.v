@@ -74,6 +74,8 @@ module raybox(
     localparam `F facingYstart      = `realF(-1.0); // ...Player is facing (0,-1); upwards on map.
     localparam `F vplaneXstart      = `realF( 0.5); // Viewplane dir is (0.5,0); right...
     localparam `F vplaneYstart      = `realF( 0.0); // ...makes FOV 45deg. Too small, but makes maths easy for now.
+		
+		localparam `F spriteNearClip		= `realF( 0.5);
 
 `ifdef DUMMY_MAP
     //SMELL: defines instead of params, to work around Quartus bug: https://community.intel.com/t5/Intel-Quartus-Prime-Software/BUG/td-p/1483047
@@ -392,7 +394,7 @@ module raybox(
         // Sprite is in front of nearest wall:
         !sprite_behind_wall &&
         // Sprite is in front of us, not behind.
-        spriteDist >= `realF(0.5); // This allows the sprite to grow to 16x16 pixels, and works up to about 0.375 units away from the cell an actor stands in.
+        spriteDist >= spriteNearClip; // This allows the sprite to grow to 16x16 pixels, and works up to about 0.375 units away from the cell an actor stands in.
 
 
     // always @(posedge clk) begin
