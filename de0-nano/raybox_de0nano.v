@@ -1,6 +1,9 @@
 `default_nettype none
 `timescale 1ns / 1ps
 
+`include "raybox_target_defs.v"
+
+
 // Wrapper for raybox module, targeting DE0-Nano board:
 module raybox_de0nano(
   input           CLOCK_50, // Onboard 50MHz clock

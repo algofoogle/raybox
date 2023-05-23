@@ -20,12 +20,15 @@
 `default_nettype none
 `timescale 1ns / 1ps
 
+
+`include "raybox_target_defs.v"
+
 // `define DUMMY_SPRITE
-`ifdef NOT_QUARTUS
-    `define SPRITE_FILE "assets/sprite-xrgb-2222.hex"
-`else
+`ifdef QUARTUS
     // Quartus needs a different relative path to find this file.
     `define SPRITE_FILE "../assets/sprite-xrgb-2222.hex"
+`else
+    `define SPRITE_FILE "assets/sprite-xrgb-2222.hex"
 `endif
 
 module sprite_rom #(

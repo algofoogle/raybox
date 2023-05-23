@@ -21,6 +21,7 @@
 `include "fixed_point_params.v"
 
 
+
 module sprite_buffer(
     // Input ports:
     input           clk,

@@ -17,6 +17,15 @@
 `default_nettype none
 `timescale 1ns / 1ps
 
+`include "raybox_target_defs.v"
+
+`ifdef QUARTUS
+    // Quartus needs a different relative path to find this file.
+    `define MAP_FILE "../assets/map_16x16.hex"
+`else
+    `define MAP_FILE "assets/map_16x16.hex"
+`endif
+
 `define DUMMY_MAP
 // `define EMPTY_MAP   // Outer walls only.
 // `define INF_MAP     // Map with a hole in it, allowing tracer to overflow.
