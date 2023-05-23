@@ -35,6 +35,19 @@ This repo is licensed with [Apache 2.0](LICENSE), except for image files found i
 are reduced-quality versions of those created by id Software for the 1992 game, "Wolfenstein 3D",
 and likely remain the property of ZeniMax Media.
 
+
+# Targeting OpenLane and Caravel
+
+More to come in this section. I did start this design with the intent of trying to get it onto a
+Google-sponsored Skywater (sky130) Open MPW shuttle, to be made into an ASIC. I'm in the process
+of seeing how feasible it is to get it synthesised with OpenLane and then in Caravel.
+
+I've got an OpenLane [`config.json`](./config.json) file in the root directory, and some OpenLane-specific
+definitions in [`openlane/raybox_target_defs.v`](./openlane/raybox_target_defs.v).
+
+I haven't yet got it to synthesise, though I've made a little progress.
+
+
 # Hardware
 
 **SCHEMATIC TBD**
@@ -243,6 +256,8 @@ Symbol          Mode                Hotkey
 *   [`de0-nano/`](./de0-nano/): Files to target Terasic DE0-Nano board (Altera Cyclone IV FPGA) in Quartus.
 *   [`src/`](./src/): Verilog source for the project.
 *   [`sim/`](./sim/): C++ code for Verilator-driven SDL-based VGA simulation.
+*   [`openlane/`](./openlane/): Files to target OpenLane and the sky130 PDK.
+*   [`config.json`](./config.json): OpenLane config for synthesis.
 
 # Requirements
 

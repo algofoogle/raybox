@@ -23,12 +23,6 @@
 `include "raybox_target_defs.v"
 
 //`define DUMMY_TEXTURE
-`ifdef QUARTUS
-    // Quartus needs a different relative path to find this file.
-    `define TEXTURE_FILE "../assets/texture-xrgb-2222.hex"
-`else
-    `define TEXTURE_FILE "assets/texture-xrgb-2222.hex"
-`endif
 
 module texture_rom #(
     parameter CHANNEL_BITS=2

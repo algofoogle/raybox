@@ -22,12 +22,15 @@ module lzc_b #(
 );
 
     function [6:0] f_lzc(input [WIDTH-1:0] data);
+
+`ifndef OPENLANE
         if (WIDTH>64 || WIDTH<1) begin
             $error("lzc_b module only designed to support 1..64 inputs but you want: %1d", WIDTH);
         end
         if (WIDTH!=`SZ) begin
             $error("lzc_b module is currently hardcoded to expect a WIDTH of %1d, but you want: %1d", `SZ, WIDTH);
         end
+`endif
 
         //HINT!!!
         //HINT: After matching SZ to your desired WIDTH, comment out the higher-up lines you don't need:

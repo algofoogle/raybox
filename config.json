@@ -1,0 +1,17 @@
+{
+    "DESIGN_NAME": "raybox",
+    "VERILOG_INCLUDE_DIRS": "dir::openlane",
+    "VERILOG_FILES": [
+        "dir::openlane/raybox_target_defs.v",
+        "dir::src/rtl/*.v"
+    ],
+    "CLOCK_PORT": "clk",
+    "CLOCK_NET": "clk",
+    "DESIGN_IS_CORE": true,
+    "pdk::sky130*": {
+        "SYNTH_MAX_FANOUT": 8,
+        "FP_CORE_UTIL": 20,
+        "PL_TARGET_DENSITY": 0.25,
+        "CLOCK_PERIOD": 40.0
+    }
+}
