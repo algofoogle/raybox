@@ -33,6 +33,9 @@ MAIN_VSOURCES = \
 	src/rtl/texture_rom.v \
 	src/rtl/sprite_rom.v
 
+SIM_VSOURCES = \
+	sim/raybox_target_defs.v
+
 
 # Top Verilog module representing our design:
 TOP = raybox
@@ -85,18 +88,18 @@ sim_seed: $(SIM_EXE)
 	@$(SIM_EXE) +verilator+rand+reset+2 +verilator+seed+$(SEED)
 
 # Build main simulation exe:
-$(SIM_EXE): $(MAIN_VSOURCES) sim/sim_main.cpp sim/main_tb.h sim/testbench.h
+$(SIM_EXE): $(SIM_VSOURCES) $(MAIN_VSOURCES) sim/sim_main.cpp sim/main_tb.h sim/testbench.h
 	echo $(RSEED)
 	verilator \
 		--Mdir sim/obj_dir \
 		-Isrc/rtl \
-		--cc $(MAIN_VSOURCES) \
+		-Isim \
+		--cc $(SIM_VSOURCES) $(MAIN_VSOURCES) \
 		--top-module $(TOP) \
 		--exe --build ../sim/sim_main.cpp \
 		$(CFLAGS) \
 		-LDFLAGS "$(SIM_LDFLAGS)" \
 		+define+RESET_AL \
-		+define+NOT_QUARTUS \
 		$(XDEFINES)
 
 
