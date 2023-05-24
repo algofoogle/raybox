@@ -32,13 +32,11 @@ using namespace std;
 
 #define HILITE      0b0001'1111
 
-//#define NEW_GAME_SIGNAL
-//#define PAUSE_SIGNAL
 //#define DEBUG_BUTTON_INPUTS
 
 //SMELL: These must be set to the same numbers in fixed_point_params.v:
-#define Qm  9
-#define Qn  9
+#define Qm  12
+#define Qn  12
 
 // #define USE_POWER_PINS //NOTE: This is automatically set in the Makefile, now.
 #define INSPECT_INTERNAL //NOTE: This is automatically set in the Makefile, now.
@@ -783,7 +781,7 @@ void handle_control_inputs(bool prepare) {
     TB->m_core->debugB    = 0;
     TB->m_core->debugC    = 0;
     TB->m_core->debugD    = 0;
-#endif DEBUG_BUTTON_INPUTSss
+#endif // DEBUG_BUTTON_INPUTS
   }
   else {
 
@@ -821,7 +819,7 @@ void handle_control_inputs(bool prepare) {
     TB->m_core->debugB    |= keystate[SDL_SCANCODE_KP_6];
     TB->m_core->debugC    |= keystate[SDL_SCANCODE_KP_2];
     TB->m_core->debugD    |= keystate[SDL_SCANCODE_KP_8];
-#endif
+#endif // DEBUG_BUTTON_INPUTS
   }
 }
 
