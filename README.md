@@ -21,11 +21,13 @@
 
 This is the start of a Verilog-based ray casting VGA renderer (i.e. "Wolf3D-style" game).
 
-Below is a crappy animated GIF before wall textures were implemented. This doesn't do it justice; running on the FPGA, it is super smooth (60FPS) and clean:
+Below is a crappy animated GIF before wall textures and the sprite were implemented.
+This doesn't do it justice; running on the FPGA, it is super smooth (60FPS) and clean:
 
 ![Animated GIF showing Raybox running on FPGA](doc/raybox-video-1.gif)
 
-Running on an FPGA, showing 64x64 wall textures with RGB222 colour, but actually outputting only RGB111 to the monitor and using a 2x2 ordered dither:
+Running on an FPGA, showing 64x64 sprite and wall textures, with RGB222 colour,
+but actually outputting only RGB111 to the monitor and using a 2x2 ordered dither:
 
 ![Raybox running on FPGA showing wall textures](doc/raybox-walls.jpg)
 
@@ -51,6 +53,10 @@ I've been trying it out with an OpenLane Docker container (version `efabless/ope
 1.  Go into `openlane/designs` and run `git clone git@github.com:algofoogle/raybox`
 2.  Go back into the `openlane/` root dir, and start the Docker container.
 3.  Run: `time ./flow.tcl -design raybox -verbose 1`
+
+Using a Q9.9 fixed-point range, I've been able to get it to sort of fit in Caravel's limits, but with
+excessive timing violations. There are some optimisations that I think I can do yet,
+but making it work with Caravel could be hard!
 
 
 # Hardware
