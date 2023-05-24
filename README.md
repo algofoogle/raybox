@@ -47,6 +47,11 @@ definitions in [`openlane/raybox_target_defs.v`](./openlane/raybox_target_defs.v
 
 I haven't yet got it to synthesise, though I've made a little progress.
 
+I've been trying it out with an OpenLane Docker container (version `efabless/openlane:cb59d1f84deb5cedbb5b0a3e3f3b4129a967c988-amd64`), and doing it like this:
+1.  Go into `openlane/designs` and run `git clone git@github.com:algofoogle/raybox`
+2.  Go back into the `openlane/` root dir, and start the Docker container.
+3.  Run: `time ./flow.tcl -design raybox -verbose 1`
+
 
 # Hardware
 

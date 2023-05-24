@@ -5,8 +5,8 @@
 // It seems the smaller the player step size, the bigger Qm needs to be. Non-power-of-2 steps could make this worse.
 // For instance, with Q12.12, it seems the smallest reliable step quantum is 8, i.e. 8*(2^-12) => 0.001953125.
 // This might be made better if we properly check for reciprocal saturation.
-`define Qm          12                  // Signed.
-`define Qn          12                  // Currently 9 seems to be the lowest value for clean 640x480, but 10+ is recommended.
+`define Qm          9                   // Signed.
+`define Qn          9                  // Currently 9 seems to be the lowest value for clean 640x480, but 10+ is recommended.
 `define Qmn         (`Qm+`Qn)
 `define QMI         (`Qm-1)             // Just for convenience; M-1.
 //NOTE:
@@ -26,6 +26,7 @@
 
 //SMELL: Base all of these hardcoded numbers on Qm and Qn values:
 `define F           signed [`QMI:-`Qn]  // `Qm-1:0 is M (int), -1:-`Qn is N (frac).
+`define FExt        [`Qm+`Qn-1:0]       // Same as F but for external use (i.e. with no negative bit indices, to help OpenLane LVS).
 `define I           signed [`QMI:0]
 `define f           [-1:-`Qn]           //SMELL: Not signed.
 `define F2          signed [`Qm*2-1:-`Qn*2] // Double-sized F (e.g. result of multiplication).

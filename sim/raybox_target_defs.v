@@ -1,4 +1,4 @@
-// Verilator (sim) raybox_target_defs.v
+// The Verilator (sim) version of raybox_target_defs.v
 
 // This file is included by some of the main RTL files to specify things are unique
 // to how that target's tools work.

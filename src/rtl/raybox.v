@@ -34,28 +34,29 @@ module raybox(
     input               moveF,
     input               moveB,
 
-    input               debugA,
-    input               debugB,
-    input               debugC,
-    input               debugD,
-
     input               write_new_position, // If true, use the `new_*` values to overwrite the design's registers.
-    input   `F          new_playerX,
-    input   `F          new_playerY,
-    input   `F          new_facingX,
-    input   `F          new_facingY,
-    input   `F          new_vplaneX,
-    input   `F          new_vplaneY,
+    input   `FExt       new_playerX,
+    input   `FExt       new_playerY,
+    input   `FExt       new_facingX,
+    input   `FExt       new_facingY,
+    input   `FExt       new_vplaneX,
+    input   `FExt       new_vplaneY,
     
     output  reg [1:0]   red,   // Each of R, G, and B are 2bpp, for a total of 64 possible colours.
     output  reg [1:0]   green,
     output  reg [1:0]   blue,
     output              hsync,
     output              vsync,
-    output  [9:0]       px,   // Current pixel x.
-    output  [9:0]       py,   // Current pixel y.
-    output  [10:0]      frame_num,
     output              speaker
+
+    // DEBUG stuff:
+    // input               debugA,
+    // input               debugB,
+    // input               debugC,
+    // input               debugD,
+    // output  [9:0]       px,   // Current pixel x.
+    // output  [9:0]       py,   // Current pixel y.
+    // output  [10:0]      frame_num,
 );
 
     localparam SPRITE_TRANSPARENT_COLOR = 6'b110011;
@@ -74,8 +75,8 @@ module raybox(
     localparam `F facingYstart      = `realF(-1.0); // ...Player is facing (0,-1); upwards on map.
     localparam `F vplaneXstart      = `realF( 0.5); // Viewplane dir is (0.5,0); right...
     localparam `F vplaneYstart      = `realF( 0.0); // ...makes FOV 45deg. Too small, but makes maths easy for now.
-		
-		localparam `F spriteNearClip		= `realF( 0.5);
+
+    localparam `F spriteNearClip    = `realF( 0.5);
 
 `ifdef DUMMY_MAP
     //SMELL: defines instead of params, to work around Quartus bug: https://community.intel.com/t5/Intel-Quartus-Prime-Software/BUG/td-p/1483047
@@ -146,9 +147,9 @@ module raybox(
     end
 
 
-    assign px = h;
-    assign py = v;
-    assign frame_num = frame;   //SMELL: Work on getting rid of the need for this.
+    // assign px = h;
+    // assign py = v;
+    // assign frame_num = frame;   //SMELL: Work on getting rid of the need for this.
 
     // General reset and game state animation (namely, motion):
     always @(posedge clk) begin
@@ -208,12 +209,12 @@ module raybox(
 
     // RGB output gating:
     wire [1:0]  r, g, b; // Raw R, G, B values to be gated by 'visible'.
-		
-		always @(posedge clk) begin
-				red   <= visible ? r : 2'b00;
-				green <= visible ? g : 2'b00;
-				blue  <= visible ? b : 2'b00;
-		end
+
+    always @(posedge clk) begin
+        red   <= visible ? r : 2'b00;
+        green <= visible ? g : 2'b00;
+        blue  <= visible ? b : 2'b00;
+    end
 
     // This generates base VGA timing:
     vga_sync sync(
@@ -289,7 +290,9 @@ module raybox(
 
 /* verilator lint_off WIDTH */
     //SMELL: We could pack yscale into a smaller number of bits. Basically we could just use wall_dist directly...?
-    wire `F             yscale      = wall_dist;// >> 3;    // NOTE: This scales the TEXTURE coordinate look-up... not the height of the wall.
+    wire `F             yscale      = wall_dist>>(12-`Qn);  // NOTE: This scales the TEXTURE coordinate look-up... not the height of the wall.
+    //SMELL: Why does it need a shift if it isn't exactly 12 bits? Need to look into that.
+
     wire [9:0]          wall_height = heightScale[1:-8];    // Equiv. to: fixed-point heightScale value, *256, floored. Note that this can go up to 511.
 
     // Work out the texture Y offset (in range 0..63) by using how far v is through wall_height:

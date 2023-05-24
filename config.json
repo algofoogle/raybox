@@ -7,11 +7,10 @@
     ],
     "CLOCK_PORT": "clk",
     "CLOCK_NET": "clk",
-    "DESIGN_IS_CORE": true,
 
     "FP_SIZING": "absolute",
-    "DIE_AREA": "0 0 2700 3200",
-    "PL_TARGET_DENSITY": 0.17,
+    "DIE_AREA": "0 0 2900 3500",
+    "PL_TARGET_DENSITY": 0.10,
 
     "pdk::sky130*": {
         "SYNTH_MAX_FANOUT": 8,
@@ -19,6 +18,7 @@
     },
 
     "pdk::sky130__DISABLED__DISABLED": {
+        "DESIGN_IS_CORE": false,
         "FP_CORE_UTIL": 20,
         "PL_TARGET_DENSITY": 0.25
     }
