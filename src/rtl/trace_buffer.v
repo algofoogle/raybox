@@ -35,21 +35,25 @@ module trace_buffer(
     // InOut ports (i.e. bi-dir):
     //SMELL: Should we have separate read/write ports for simplicity?
     inout [15:0]    vdist,  // View (trace) distance, as Q7.9.
+    inout [1:0]     wtid,   // Wall Type ID.
     inout           side,
     inout [5:0]     tex
 );
 
     reg [15:0]      vdist_out;
+    reg [1:0]       wtid_out;   // Wall Type ID.
     reg             side_out;
     reg [5:0]       tex_out;
 
     reg [15:0]      dummy_vdist_memory  [0:640-1];  // 10240 bits.
+    reg [1:0]       dummy_wtid_memory   [0:640-1];  // 1280 bits.
     reg             dummy_side_memory   [0:640-1];  // 640 bits.
     reg [5:0]       dummy_tex_memory    [0:640-1];  // 3840 bits.
 
     // Tri-state buffer control for output mode:
     wire read_mode  = (cs && oe && !we);
-    assign vdist    = read_mode ? vdist_out  : 16'bz;
+    assign vdist    = read_mode ? vdist_out : 16'bz;
+    assign wtid     = read_mode ? wtid_out  : 2'bz;
     assign side     = read_mode ? side_out  : 1'bz;
     assign tex      = read_mode ? tex_out   : 6'bz;
 
@@ -57,6 +61,7 @@ module trace_buffer(
     always @(posedge clk) begin : MEM_WRITE
         if (cs && we) begin
             dummy_vdist_memory  [column]    = vdist;
+            dummy_wtid_memory   [column]    = wtid;
             dummy_side_memory   [column]    = side;
             dummy_tex_memory    [column]    = tex;
         end
@@ -66,6 +71,7 @@ module trace_buffer(
     always @(posedge clk) begin : MEM_READ
         if (read_mode) begin
             vdist_out   = dummy_vdist_memory[column];
+            wtid_out    = dummy_wtid_memory [column];
             side_out    = dummy_side_memory [column];
             tex_out     = dummy_tex_memory  [column];
         end

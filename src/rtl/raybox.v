@@ -17,9 +17,8 @@
 `default_nettype none
 `timescale 1ns / 1ps
 
-`define DUMMY_MAP       // If defined, map is made by combo logic instead of ROM.
-`define ENABLE_DEBUG    // If defined, extra logic exists that reacts to the `show_debug` signal.
-// `define DEBUG_X 320
+// `define DUMMY_MAP       // If defined, map is made by combo logic instead of ROM.
+//`define ENABLE_DEBUG    // If defined, extra logic displays the debug overlay.
 
 `include "fixed_point_params.v"
 
@@ -46,8 +45,8 @@ module raybox(
     output  reg [1:0]   green,
     output  reg [1:0]   blue,
     output              hsync,
-    output              vsync,
-    output              speaker
+    output              vsync
+    // output              speaker
 
     // DEBUG stuff:
     // input               debugA,
@@ -59,16 +58,18 @@ module raybox(
     // output  [10:0]      frame_num,
 );
 
-    localparam SPRITE_TRANSPARENT_COLOR = 6'b110011;
-
     localparam DEBUG_SCALE          = 3;                        // Power of 2 scaling for debug overlay.
+
+    localparam MAP_SIZE_BITS        = 6;
+    localparam MAP_SCALE            = 2;                        // Power of 2 scaling for map overlay size.
+    localparam MAP_OVERLAY_SIZE     = (1<<(MAP_SCALE))*(1<<MAP_SIZE_BITS)+1;    // Total size of map overlay.
+
+    localparam SPRITE_TRANSPARENT_COLOR = 6'b110011;
 
     localparam SCREEN_WIDTH         = 640;
     localparam HALF_WIDTH           = SCREEN_WIDTH>>1;
     localparam SCREEN_HEIGHT        = 480;
     localparam HALF_HEIGHT          = SCREEN_HEIGHT>>1;
-    localparam MAP_SCALE            = 4;                        // Power of 2 scaling for map overlay size.
-    localparam MAP_OVERLAY_SIZE     = (1<<(MAP_SCALE))*16+1;    // Total size of map overlay. //NOTE: *16 is map width/height in cells.
 
 /* verilator lint_off REALCVT */
     localparam `F facingXstart      = `realF( 0.0); // ...
@@ -83,8 +84,8 @@ module raybox(
     `define       playerXstartcell    1
     `define       playerYstartcell    13
 `else
-    `define       playerXstartcell    8
-    `define       playerYstartcell    14
+    `define       playerXstartcell    37
+    `define       playerYstartcell    48
 `endif
     // Player's full start position is in the middle of a cell:
     //SMELL: defines instead of params, to work around Quartus bug: https://community.intel.com/t5/Intel-Quartus-Prime-Software/BUG/td-p/1483047
@@ -126,7 +127,7 @@ module raybox(
 
     wire [9:0]  spriteX /* verilator public */;     // Centre point of sprite in screen coordinates.
 
-    assign speaker = 0; // Speaker is unused for now.
+    // assign speaker = 0; // Speaker is unused for now.
 
     // Outputs from vga_sync:
     wire [9:0]  h;          // Horizontal scan position (i.e. X pixel).
@@ -145,11 +146,6 @@ module raybox(
             debug_frame_count = debug_frame_count + 1;
         end
     end
-
-
-    // assign px = h;
-    // assign py = v;
-    // assign frame_num = frame;   //SMELL: Work on getting rid of the need for this.
 
     // General reset and game state animation (namely, motion):
     always @(posedge clk) begin
@@ -245,6 +241,7 @@ module raybox(
         .clk    (clk),
         .column (buffer_column),
         .side   (wall_side),
+        .wtid   (wall_wtid),
         .vdist  (wall_dist),
         .tex    (wall_texX),
         .cs     (1),    //SMELL: Redundant?
@@ -265,14 +262,16 @@ module raybox(
     wire [9:0]          buffer_column = visible ? h : tracer_addr;
     wire [9:0]          tracer_addr;    // Driven by tracer directly...
     wire                tracer_side;    // ...
+    wire [1:0]          tracer_wtid;    // ...
     wire [`DII:`DFI]    tracer_dist;    // ...(using fewer bits, to reduce memory size)...
     wire [5:0]          tracer_texX;    // .
 
     // During trace_buffer write, we drive wall_height directly.
     // Otherwise, set it to Z because trace_buffer drives it:
-    wire                wall_side   = trace_we ? tracer_side : 1'bz;
-    wire [`DII:`DFI]    wall_dist   = trace_we ? tracer_dist : { `Dbits{1'bz} };
-    wire [5:0]          wall_texX   = trace_we ? tracer_texX : 6'bz;
+    wire                wall_side   = trace_we ? tracer_side    : 1'bz;
+    wire [1:0]          wall_wtid   = trace_we ? map_val        : 2'bz; // Tracer writes use map_val directly, otherwise we're reading into wall_wtid.
+    wire [`DII:`DFI]    wall_dist   = trace_we ? tracer_dist    : { `Dbits{1'bz} };
+    wire [5:0]          wall_texX   = trace_we ? tracer_texX    : 6'bz;
 
     wire [2:0]          spriteIndex = visible ? 0 : tracer_spriteIndex;
     wire `F             spriteDist  = tracer_spriteStore ? tracer_spriteDist    : { `Qmn{1'bz} };
@@ -290,9 +289,11 @@ module raybox(
 
 /* verilator lint_off WIDTH */
     //SMELL: We could pack yscale into a smaller number of bits. Basically we could just use wall_dist directly...?
-    wire `F             yscale      = wall_dist>>(12-`Qn);  // NOTE: This scales the TEXTURE coordinate look-up... not the height of the wall.
-    //SMELL: Why does it need a shift if it isn't exactly 12 bits? Need to look into that.
-
+    wire `F yscale = (`Qn-`DF-3>0) ? wall_dist<<(`Qn-`DF-3) : wall_dist>>-(`Qn-`DF-3);
+    //NOTE: This scales the TEXTURE coordinate look-up... not the height of the wall.
+    //NOTE: The magic "3" is the magnitude difference between 512 scaling and the
+    // texture height of 64, i.e. 512>>3=64.
+    
     wire [9:0]          wall_height = heightScale[1:-8];    // Equiv. to: fixed-point heightScale value, *256, floored. Note that this can go up to 511.
 
     // Work out the texture Y offset (in range 0..63) by using how far v is through wall_height:
@@ -323,9 +324,9 @@ module raybox(
     wire [5:0]  wall_texY = wtyf[5:0];
 /* verilator lint_on WIDTH */
 
-    wire [3:0] map_row, map_col;
+    wire [MAP_SIZE_BITS-1:0] map_row, map_col;
     wire [1:0] map_val;
-    tracer tracer(
+    tracer #(.MAP_SIZE_BITS(MAP_SIZE_BITS)) tracer (
         // Inputs to tracer:
         .clk        (clk),
         .reset      (reset),
@@ -353,9 +354,9 @@ module raybox(
     );
 
     // Map ROM, both for tracing, and for optional show_map overlay:
-    map_rom map(
-        .col    (visible ? h[MAP_SCALE+3:MAP_SCALE] : map_col),
-        .row    (visible ? v[MAP_SCALE+3:MAP_SCALE] : map_row),
+    map_rom #(.COLBITS(MAP_SIZE_BITS), .ROWBITS(MAP_SIZE_BITS)) map(
+        .col    (visible ? h[MAP_SCALE+MAP_SIZE_BITS-1:MAP_SCALE] : map_col),
+        .row    (visible ? v[MAP_SCALE+MAP_SIZE_BITS-1:MAP_SCALE] : map_row),
         .val    (map_val)
     );
 
@@ -416,23 +417,25 @@ module raybox(
     // Is this a dead column, i.e. height is 0? This shouldn't happen normally,
     // but if it does (either due to a glitch or debug purpose) then it should render
     // this pixel as magenta:
-    wire        dead_column = wall_height==0;// || h==DEBUG_X;
+    wire        dead_column = wall_height==0;
 
     // Are we in the region of the screen where the map overlay must currently render?
     //SMELL: Should this be a separate module, too, for clarity?
-    wire        in_map_overlay  = show_map && h < MAP_OVERLAY_SIZE && v < MAP_OVERLAY_SIZE;
-    wire        in_map_gridline = in_map_overlay && (h[MAP_SCALE-1:0]==0||v[MAP_SCALE-1:0]==0);
-    wire        in_player_cell  = in_map_overlay && (playerX[3:0]==h[MAP_SCALE+3:MAP_SCALE] && playerY[3:0]==v[MAP_SCALE+3:MAP_SCALE]);
+    wire        in_map_overlay  = show_map
+                                    && h < MAP_OVERLAY_SIZE
+                                    && v < MAP_OVERLAY_SIZE;
+    wire        in_map_gridline = in_map_overlay
+                                    && (h[MAP_SCALE-1:0]==0||v[MAP_SCALE-1:0]==0);
+    wire        in_player_cell  = in_map_overlay
+                                    && playerX[MAP_SIZE_BITS-1:0]==h[MAP_SCALE+MAP_SIZE_BITS-1:MAP_SCALE]
+                                    && playerY[MAP_SIZE_BITS-1:0]==v[MAP_SCALE+MAP_SIZE_BITS-1:MAP_SCALE];
     wire        in_player_pixel = in_player_cell
                                     && (playerX[-1:-MAP_SCALE]==h[MAP_SCALE-1:0])
                                     && (playerY[-1:-MAP_SCALE]==v[MAP_SCALE-1:0]);
-`ifdef DEBUG_X
-    always @(posedge clk) begin
-        if (h == `DEBUG_X && v==0) begin
-            $display("\t\t\t\t\t\t\t\t\t\tWALL HEIGHT: %d  YSCALE: %b %f", wall_height, yscale, `Freal(yscale));
-        end
-    end
-`endif
+
+    wire        map_r =  map_val[1];
+    wire        map_g = &map_val[1:0];
+    wire        map_b =  map_val[0];
 
     wire [1:0]  wall_r,     wall_g,     wall_b;
     wire [1:0]  sprite_r,   sprite_g,   sprite_b;
@@ -440,16 +443,17 @@ module raybox(
 
 
     texture_rom wall_textures(
-        .side(wall_side),
-        .col(wall_texX),
-        .row(wall_texY),
-        .val( {wall_r, wall_g, wall_b} )
+        .side   (wall_side),
+        .wtid   (wall_wtid),
+        .col    (wall_texX),
+        .row    (wall_texY),
+        .val    ( {wall_r, wall_g, wall_b} )
     );
 
     sprite_rom sprites(
-        .col(sprite_texX),
-        .row(sprite_texY),
-        .val( {sprite_r, sprite_g, sprite_b} )
+        .col    (sprite_texX),
+        .row    (sprite_texY),
+        .val    ( {sprite_r, sprite_g, sprite_b} )
     );
     
 
@@ -477,7 +481,7 @@ module raybox(
         in_player_pixel ?   2'b11 :             // Player pixel in map is yellow.
         in_player_cell  ?   0 :
         in_map_gridline ?   0 :
-        in_map_overlay  ?   0 :
+        in_map_overlay  ?   {map_r,map_r} :
         in_border       ?   2'b01 :             // Border is dark purple.
         in_sprite       ?   sprite_r :
         dead_column     ?   2'b11 :             // 0-height columns are filled with magenta.
@@ -489,7 +493,7 @@ module raybox(
         in_player_pixel ?   2'b11 :             // Player pixel in map is yellow.
         in_player_cell  ?   2'b01 :             // Player cell in map is dark green.
         in_map_gridline ?   0 :
-        in_map_overlay  ?   0 :
+        in_map_overlay  ?   {map_g,map_g} :
         in_border       ?   0 :
         in_sprite       ?   sprite_g :
         dead_column     ?   0 :
@@ -501,7 +505,7 @@ module raybox(
         in_player_pixel ?   0 :
         in_player_cell  ?   0 :
         in_map_gridline ?   2'b01 :             // Map gridlines are dark blue.
-        in_map_overlay  ?   map_val :           // Map cell (colour).
+        in_map_overlay  ?   {map_b,map_b} :           // Map cell (colour).
         in_border       ?   2'b01 :             // Border is dark purple.
         in_sprite       ?   sprite_b :
         dead_column     ?   2'b11 :             // 0-height columns are filled with magenta.

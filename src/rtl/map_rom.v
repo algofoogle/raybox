@@ -20,7 +20,7 @@
 `include "raybox_target_defs.v"
 
 
-`define DUMMY_MAP
+// `define DUMMY_MAP
 // `define EMPTY_MAP   // Outer walls only.
 // `define INF_MAP     // Map with a hole in it, allowing tracer to overflow.
 
@@ -30,23 +30,28 @@
 //NOTE: Is it more efficient to store each cell as 1 array element,
 // or each *row* as one array element (i.e. packed bits)?
 module map_rom #(
-    parameter COLS=16,
-    parameter ROWS=16,
+    parameter COLBITS=4,
+    parameter ROWBITS=4,
     parameter BITS=2    // Bits needed to store 1 map cell.
 )(
-    input   [3:0]       row, //SMELL: Row and col bit width are hardcoded here.
-    input   [3:0]       col,
-    output  [BITS-1:0]  val
+    input   [COLBITS-1:0]   row,
+    input   [ROWBITS-1:0]   col,
+    output  [BITS-1:0]      val
 );
+
+    localparam MAXCOL = (1<<COLBITS)-1;
+    localparam MAXROW = (1<<ROWBITS)-1;
+    localparam MIDCOL1 = (1<<(COLBITS-1))-1;
+    localparam MIDCOL2 = MIDCOL1+1;
 
 `ifdef DUMMY_MAP
     assign val = 
         (
-            ((row==0 || row==15 || col==0 || col==15) ||    // Outer box.
+            ((row==0 || row==MAXROW || col==0 || col==MAXCOL) ||    // Outer box.
     `ifdef EMPTY_MAP
             0)
         `ifdef INF_MAP
-            && (col!=7) && (col!=8)
+            && (col!=MIDCOL1) && (col!=MIDCOL2)
         `endif
     `else
             ((~row[2:0]==col[2:0]) & ~row[3] & ~col[3]) ||
@@ -57,10 +62,10 @@ module map_rom #(
     `endif
         ) ? 2'b11 : 2'b00;
 `else
-    reg [7:0]   dummy_memory [0:ROWS-1][0:COLS-1];
-    initial $readmemh("assets/map_16x16.hex", dummy_memory);
+    reg [7:0]   dummy_memory [0:MAXCOL][0:MAXROW];
+    initial $readmemh("assets/map_64x64.hex", dummy_memory);
 
-    assign val = dummy_memory[row][col][BITS-1:0];
+    assign val = dummy_memory[col][row][BITS-1:0];
 `endif
 
 endmodule

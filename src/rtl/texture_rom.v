@@ -28,6 +28,7 @@ module texture_rom #(
     parameter CHANNEL_BITS=2
 )(
     input               side,
+    input   [1:0]       wtid,
     input   [5:0]       col,
     input   [5:0]       row,
     output  [CHANNEL_BITS*3-1:0]  val
@@ -42,15 +43,21 @@ module texture_rom #(
 `else
     //SMELL: This reg should be however many bits our output val is.
     // I've just made it 8-bit for now to match my data file.
-//    reg [7:0] data [0:127][0:63] /* verilator public */;
-    reg [7:0] data [0:8191] /* verilator public */;
+    reg [7:0] data [0:2][0:8191] /* verilator public */;
 
     initial begin
         //NOTE: This file scans on Y axis first, then X.
-        $readmemh(`TEXTURE_FILE, data);
+        $readmemh(`TEXTURE1_FILE, data,     0,   8191);
+        $readmemh(`TEXTURE2_FILE, data,  8192,  16383);
+        $readmemh(`TEXTURE3_FILE, data, 16384,  24575);
     end
 
-    assign val[CHANNEL_BITS*3-1:0] = data[{~side,col,row}][CHANNEL_BITS*3-1:0];
+    wire [1:0] wtid_1 = wtid-1;
+    assign val[CHANNEL_BITS*3-1:0] = data[wtid_1][{~side,col,row}][CHANNEL_BITS*3-1:0];
+    // assign val[CHANNEL_BITS*3-1:0] = data[{~side,col,row}][CHANNEL_BITS*3-1:0];
+    // assign val[1:0] = data[{~side,col,row}][1:0];
+    // assign val[3:2] = data[{~side,col,row}][3:2];
+    // assign val[5:4] = wtid;
 `endif
 
 endmodule

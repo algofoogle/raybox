@@ -33,6 +33,7 @@ using namespace std;
 #define HILITE      0b0001'1111
 
 //#define DEBUG_BUTTON_INPUTS
+//#define USE_SPEAKER
 
 //SMELL: These must be set to the same numbers in fixed_point_params.v:
 #define Qm  12
@@ -116,6 +117,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 
 uint32_t gTestVectors[10][6] {
+  //NOTE: These are based on Q12.12...
   { // F1: Shows 0 line on X:
     0x00001800, // 1.500000
     0x0000D800, // 13.500000
@@ -196,23 +198,6 @@ uint32_t gTestVectors[10][6] {
     0x00000C00, // 0.750000
     0x00000000, // 0.000000
   },
-
-  // { // F9: Q15.15: Wall edge glitch check.
-  //   0x0001A53D, // 3.290924
-  //   0x0005805E, // 11.002869
-  //   0x00007DF3, // 0.983978
-  //   0x000016D0, // 0.178223
-  //   0x3FFFF498, // -0.089111
-  //   0x00003EF9, // 0.491974
-  // },
-  // { // F10: Q15.15: Wall edge glitch check.
-  //   0x0001A576, // 3.292664
-  //   0x00057F23, // 10.993256
-  //   0x00007DF3, // 0.983978
-  //   0x000016D0, // 0.178223
-  //   0x3FFFF498, // -0.089111
-  //   0x00003EF9, // 0.491974
-  // },
 };
 
 
@@ -1134,11 +1119,18 @@ int main(int argc, char **argv) {
 
       bool hsync_stopped = false;
       bool vsync_stopped = false;
-      TB->tick();      hsync_stopped |= TB->hsync_stopped();      vsync_stopped |= TB->vsync_stopped();      TB->examine_condition_met |= TB->m_core->speaker;
+      TB->tick();      hsync_stopped |= TB->hsync_stopped();      vsync_stopped |= TB->vsync_stopped();
+#ifdef USE_SPEAKER
+      TB->examine_condition_met |= TB->m_core->speaker;
+#endif // USE_SPEAKER
+
 #ifdef DOUBLE_CLOCK
-      TB->tick();      hsync_stopped |= TB->hsync_stopped();      vsync_stopped |= TB->vsync_stopped();      TB->examine_condition_met |= TB->m_core->speaker;
+      TB->tick();      hsync_stopped |= TB->hsync_stopped();      vsync_stopped |= TB->vsync_stopped();
+#ifdef USE_SPEAKER
+      TB->examine_condition_met |= TB->m_core->speaker;
+#endif // USE_SPEAKER
       // ^ We tick twice if the design halves the clock to produce the pixel clock.
-#endif
+#endif // DOUBLE_CLOCK
 
       if (hsync_stopped) {
         count_hbp = true;
@@ -1201,7 +1193,11 @@ int main(int argc, char **argv) {
       int x = h;
       int y = v;
 
+#ifdef USE_SPEAKER
       int speaker = (TB->m_core->speaker<<6);
+#else
+      int speaker = 0;
+#endif // USE_SPEAKER
       int hilite = gHighlight ? HILITE : 0; // hilite turns on lower 5 bits to show which pixel(s) have been updated.
 
       if (x >= 0 && x < WINDOW_WIDTH && y >= 0 && y < WINDOW_HEIGHT) {

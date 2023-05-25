@@ -90,22 +90,69 @@ public:
   }
 };
 
+int convert_base(const char *source, const char *target, int width, int height, bool is_map) {
+  RawImage img;
+  img.load_image(source, width, height);
+  if (!img.valid) return 1;
+  FILE* f = fopen(target, "w");
+  // fprintf(f, "@00000000\n");
+  int counter = 0;
+  //NOTE: Output hex file runs by rows before columns:
+  for (int x=0; x<width; ++x) {
+    for (int y=0; y<height; ++y) {
+      int c = img.xrgb222(x,y);
+      if (is_map) {
+        switch (c) {
+          case 0b00000000:  c = 0b00; break;
+          case 0b00000011:  c = 0b01; break;
+          case 0b00110000:  c = 0b10; break;
+          case 0b00111111:  c = 0b11; break;
+          default:
+          {
+            printf("ERROR: Map uses invalid colour: %02X\n", c);
+            fclose(f);
+            return 1;
+          }
+        }
+      }
+      fprintf(f, "%02X%c", c, ((counter++ & 15) == 15) ? '\n' : ' ');
+    }
+  }
+  fclose(f);
+  return 0;
+}
+
+
+int convert_sprite  (const char *source, const char *target) { return convert_base(source, target,  64, 64, false); }
+int convert_wall    (const char *source, const char *target) { return convert_base(source, target, 128, 64, false); }
+int convert_map     (const char *source, const char *target) { return convert_base(source, target,  64, 64, true); }
+
 
 int main(int argc, char **argv) {
-    RawImage sprite;
-    if (argc!=3) {
-        printf("Usage: %s inputimage.png outputrom.hex\n", *argv);
+  bool bad_args;
+  char* cmd = argv[1];
+  do {
+    bad_args = true;
+    if (argc!=4) break;
+    if (0 == strcmp(cmd, "sprite")) {
+      return convert_sprite(argv[2], argv[3]);
+    } else if (0 == strcmp(cmd, "wall")) {
+      return convert_wall(argv[2], argv[3]);
+    } else if (0 == strcmp(cmd, "map")) {
+      return convert_map(argv[2], argv[3]);
+    } else {
+      printf("ERROR: Unknown command: '%s'\n", cmd);
+      break;
     }
-    sprite.load_image(argv[1], 64, 64);
-    if (!sprite.valid) return 1;
-    FILE* f = fopen(argv[2], "w");
-    fprintf(f, "@00000000\n");
-    int counter = 0;
-    //NOTE: Output hex file runs by rows before columns:
-    for (int x=0; x<sprite.width; ++x) {
-        for (int y=0; y<sprite.height; ++y) {
-            fprintf(f, "%02X%c", sprite.xrgb222(x,y), ((counter++ & 15) == 15) ? '\n' : ' ');
-        }
-    }
-    fclose(f);
+  } while (false);
+  if (bad_args) {
+    printf(
+      "Usage: %s command inputimage.png outputrom.hex\n"
+      "where 'command' is one of:\n"
+      "  sprite  = Convert single 64x64 sprite\n"
+      "  wall    = Convert single 128x64 wall pair\n"
+      "  map     = Convert a 64x64 map\n",
+      *argv
+    );
+  }
 }

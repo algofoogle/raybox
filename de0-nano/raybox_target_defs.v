@@ -15,5 +15,7 @@
 
 // It seems Quartus treats $readmemh paths as relative to its project directory.
 `define SPRITE_FILE     "../assets/sprite-xrgb-2222.hex"
-`define TEXTURE_FILE    "../assets/texture-xrgb-2222.hex"
+`define TEXTURE1_FILE   "../assets/blue-wall-xrgb2222.hex"
+`define TEXTURE2_FILE   "../assets/red-wall-xrgb2222.hex"
+`define TEXTURE3_FILE   "../assets/grey-wall-xrgb2222.hex"
 `define MAP_FILE        "../assets/map_16x16.hex"

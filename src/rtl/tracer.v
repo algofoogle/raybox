@@ -43,7 +43,9 @@
 
 `include "fixed_point_params.v"
 
-module tracer(
+module tracer #(
+    parameter MAP_SIZE_BITS=4
+)(
     input               clk,
     input               reset,
     input               enable,             // High when we want the tracer to operate.
@@ -53,11 +55,11 @@ module tracer(
     input       `F      facingY,            //
     input       `F      vplaneX,            // Viewplane vector.
     input       `F      vplaneY,
-    input       [10:0]  debug_frame,
+    input       [10:0]  debug_frame,        //SMELL: This is now only used for Verilog simulations, so can we make it an 'integer' instead?
 
     // Map ROM read access:
-    output      [3:0]   map_col,
-    output      [3:0]   map_row,
+    output      [MAP_SIZE_BITS-1:0]   map_col,
+    output      [MAP_SIZE_BITS-1:0]   map_row,
     input       [1:0]   map_val,
 
     // Trace buffer write access:
@@ -85,8 +87,8 @@ module tracer(
     reg [9:0] col_counter;
 
 /* verilator lint_off REALCVT */
-    localparam `F spriteX = `realF(1.5);
-    localparam `F spriteY = `realF(9.5);
+    localparam `F spriteX = `realF(32.5);
+    localparam `F spriteY = `realF(37.5);
 /* verilator lint_on REALCVT */
 
     // Calculate vector from player to sprite.
@@ -212,8 +214,8 @@ module tracer(
     wire `F2    trackYinit = stepYdist * partialY;
 
     // Send the current tested map cell to the map ROM:
-    assign map_col = mapX[3:0];
-    assign map_row = mapY[3:0];
+    assign map_col = mapX[MAP_SIZE_BITS-1:0];
+    assign map_row = mapY[MAP_SIZE_BITS-1:0];
 
     wire `F     visualWallDist = side ? trackYdist-stepYdist : trackXdist-stepXdist;
     assign vdist = visualWallDist[6:-9]; //HACK:
