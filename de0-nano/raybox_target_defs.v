@@ -12,6 +12,7 @@
 `timescale 1ns / 1ps
 
 `define QUARTUS
+`define ENABLE_DEBUG    // Shows debugging overlay (vector bits exposed in top-right corner)
 
 // It seems Quartus treats $readmemh paths as relative to its project directory.
 `define SPRITE_FILE     "../assets/sprite-xrgb-2222.hex"

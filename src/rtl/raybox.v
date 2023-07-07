@@ -17,7 +17,7 @@
 `default_nettype none
 `timescale 1ns / 1ps
 
-// `define DUMMY_MAP       // If defined, map is made by combo logic instead of ROM.
+//`define DUMMY_MAP       // If defined, map is made by combo logic instead of ROM.
 //`define ENABLE_DEBUG    // If defined, extra logic displays the debug overlay.
 
 `include "fixed_point_params.v"
