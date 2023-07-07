@@ -18,4 +18,4 @@
 `define TEXTURE1_FILE   "../assets/blue-wall-xrgb2222.hex"
 `define TEXTURE2_FILE   "../assets/red-wall-xrgb2222.hex"
 `define TEXTURE3_FILE   "../assets/grey-wall-xrgb2222.hex"
-`define MAP_FILE        "../assets/map_16x16.hex"
+`define MAP_FILE        "../assets/map_64x64.hex"

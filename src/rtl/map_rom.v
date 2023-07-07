@@ -38,9 +38,10 @@ module map_rom #(
     input   [ROWBITS-1:0]   col,
     output  [BITS-1:0]      val
 );
-
-    localparam MAXCOL = (1<<COLBITS)-1;
-    localparam MAXROW = (1<<ROWBITS)-1;
+    localparam COLCOUNT = (1<<COLBITS);
+    localparam ROWCOUNT = (1<<ROWBITS);
+    localparam MAXCOL = COLCOUNT-1;
+    localparam MAXROW = ROWCOUNT-1;
     localparam MIDCOL1 = (1<<(COLBITS-1))-1;
     localparam MIDCOL2 = MIDCOL1+1;
 
@@ -62,10 +63,21 @@ module map_rom #(
     `endif
         ) ? 2'b11 : 2'b00;
 `else
-    reg [7:0]   dummy_memory [0:MAXCOL][0:MAXROW];
-    initial $readmemh("assets/map_64x64.hex", dummy_memory);
 
-    assign val = dummy_memory[col][row][BITS-1:0];
+
+    `ifdef QUARTUS
+        // $readmemh needs 1D array in Quartus:
+        reg [7:0]   dummy_memory [0:COLCOUNT*ROWCOUNT-1];
+        initial $readmemh(`MAP_FILE, dummy_memory);
+        assign val = dummy_memory[{col,row}][BITS-1:0];
+    `else // not QUARTUS
+        // $readmemh works OK with 2D array in everything else:
+        reg [7:0]   dummy_memory [0:MAXCOL][0:MAXROW];
+        initial $error("NEED TO CHANGE REFERENCE BELOW TO USE MAP_FILE");
+        initial $readmemh("assets/map_64x64.hex", dummy_memory);
+        assign val = dummy_memory[col][row][BITS-1:0];
+    `endif // QUARTUS
+    
 `endif
 
 endmodule

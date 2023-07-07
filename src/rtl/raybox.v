@@ -26,7 +26,6 @@ module raybox(
     input               clk,
     input               reset,
     input               show_map,           // Button to control whether we show the map overlay.
-    input               show_debug,
 
     input               moveL,
     input               moveR,
@@ -45,7 +44,7 @@ module raybox(
     output  reg [1:0]   green,
     output  reg [1:0]   blue,
     output              hsync,
-    output              vsync
+    output              vsync,
     // output              speaker
 
     // DEBUG stuff:
@@ -53,9 +52,15 @@ module raybox(
     // input               debugB,
     // input               debugC,
     // input               debugD,
-    // output  [9:0]       px,   // Current pixel x.
-    // output  [9:0]       py,   // Current pixel y.
-    // output  [10:0]      frame_num,
+    
+`ifdef QUARTUS
+    output              px0,  // Bit 0 of VGA pixel X position.
+    output              py0,  // Bit 0 of VGA pixel Y position.
+    output              fr0,  // Bit 0 of VGA frame number.
+`endif
+
+    input               show_debug
+
 );
 
     localparam DEBUG_SCALE          = 3;                        // Power of 2 scaling for debug overlay.
@@ -146,6 +151,13 @@ module raybox(
             debug_frame_count = debug_frame_count + 1;
         end
     end
+    
+`ifdef QUARTUS
+    // These are used by de0nano implementation to do temporal ordered dithering:
+    assign px0 = h[0];
+    assign py0 = v[0];
+    assign fr0 = frame[0];
+`endif // QUARTUS
 
     // General reset and game state animation (namely, motion):
     always @(posedge clk) begin
