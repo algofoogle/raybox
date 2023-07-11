@@ -62,7 +62,8 @@ module raybox_de0nano(
   assign gpio1[9] = speaker;    // Also sound the speaker on GPIO_19.
   assign LED[7] = speaker;      // Visualise speaker on LED7.
   assign LED[6:0] = {7{1'bz}};  // Leave these open (Hi-Z).
-  
+
+`ifdef MOVEMENT_BUTTONS
   // Check for debug buttons: Because we have limited input buttons wired up,
   // holding down a pair of opposing directional buttons will instead treat either
   // of the remaining buttons as a "debug" input:
@@ -77,7 +78,8 @@ module raybox_de0nano(
   wire moveR = !debug1 && !debug2 && !K[2];
   wire moveF = !debug1 && !debug2 && !K[4];
   wire moveB = !debug1 && !debug2 && !K[1];
-  
+`endif //MOVEMENT_BUTTONS
+
   //SMELL: This is a bad way to do clock dividing.
   // ...i.e. if we can't make it a global clock, then instead use it as a clock enable.
   // Otherwise, can we use the built-in FPGA clock divider?
@@ -88,17 +90,20 @@ module raybox_de0nano(
     .clk      (clock_25),
     .reset    (reset),
     .show_map (show_map),
-    
+
+`ifdef MOVEMENT_BUTTONS
     .moveL    (moveL),
     .moveR    (moveR),
     .moveF    (moveF),
     .moveB    (moveB),
+`endif //MOVEMENT_BUTTONS
     
 //    .debugA   (debugA),
 //    .debugB   (debugB),
 //    .debugC   (debugC),
 //    .debugD   (debugD),
-    
+
+`ifdef DIRECT_VECTOR_UPDATE
     .write_new_position(0),
 //    .new_playerX(0),
 //    .new_playerY(0),
@@ -106,6 +111,7 @@ module raybox_de0nano(
 //    .new_facingY(0),
 //    .new_vplaneX(0),
 //    .new_vplaneY(0),
+`endif //DIRECT_VECTOR_UPDATE
     
     .hsync    (hsync),
     .vsync    (vsync),

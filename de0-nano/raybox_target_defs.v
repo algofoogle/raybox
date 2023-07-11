@@ -12,7 +12,10 @@
 `timescale 1ns / 1ps
 
 `define QUARTUS
-`define ENABLE_DEBUG    // Shows debugging overlay (vector bits exposed in top-right corner)
+`define ENABLE_DEBUG            // Shows debugging overlay (vector bits exposed in top-right corner)
+//`define DUMMY_MAP               // If defined, map is made by combo logic instead of ROM.
+//`define DIRECT_VECTOR_UPDATE    // If defined, all of the vectors can be written to in one go when asserting write_new_position.
+//`define MOVEMENT_BUTTONS        // If defined, design can do its own updating of playerX/Y via button inputs.
 
 // It seems Quartus treats $readmemh paths as relative to its project directory.
 `define SPRITE_FILE     "../assets/sprite-xrgb-2222.hex"

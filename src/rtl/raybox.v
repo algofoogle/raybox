@@ -17,8 +17,11 @@
 `default_nettype none
 `timescale 1ns / 1ps
 
-//`define DUMMY_MAP       // If defined, map is made by combo logic instead of ROM.
-//`define ENABLE_DEBUG    // If defined, extra logic displays the debug overlay.
+//NOTE: The below can be defined in raybox_target_defs.v instead (say) if the Quartus de0-nano project wants to use these features.
+//`define DUMMY_MAP               // If defined, map is made by combo logic instead of ROM.
+//`define ENABLE_DEBUG            // If defined, extra logic displays the debug overlay.
+//`define DIRECT_VECTOR_UPDATE    // If defined, all of the vectors can be written to in one go when asserting write_new_position.
+//`define MOVEMENT_BUTTONS        // If defined, design can do its own updating of playerX/Y via button inputs.
 
 `include "fixed_point_params.v"
 
@@ -27,11 +30,14 @@ module raybox(
     input               reset,
     input               show_map,           // Button to control whether we show the map overlay.
 
+`ifdef MOVEMENT_BUTTONS
     input               moveL,
     input               moveR,
     input               moveF,
     input               moveB,
+`endif //MOVEMENT_BUTTONS
 
+`ifdef DIRECT_VECTOR_UPDATE
     input               write_new_position, // If true, use the `new_*` values to overwrite the design's registers.
     input   `FExt       new_playerX,
     input   `FExt       new_playerY,
@@ -39,7 +45,8 @@ module raybox(
     input   `FExt       new_facingY,
     input   `FExt       new_vplaneX,
     input   `FExt       new_vplaneY,
-    
+`endif //DIRECT_VECTOR_UPDATE
+
     output  reg [1:0]   red,   // Each of R, G, and B are 2bpp, for a total of 64 possible colours.
     output  reg [1:0]   green,
     output  reg [1:0]   blue,
@@ -80,7 +87,7 @@ module raybox(
     localparam `F facingXstart      = `realF( 0.0); // ...
     localparam `F facingYstart      = `realF(-1.0); // ...Player is facing (0,-1); upwards on map.
     localparam `F vplaneXstart      = `realF( 0.5); // Viewplane dir is (0.5,0); right...
-    localparam `F vplaneYstart      = `realF( 0.0); // ...makes FOV 45deg. Too small, but makes maths easy for now.
+    localparam `F vplaneYstart      = `realF( 0.0); // ...makes FOV ~52deg. Too small, but makes maths easy for now.
 
     localparam `F spriteNearClip    = `realF( 0.5);
 
@@ -89,8 +96,8 @@ module raybox(
     `define       playerXstartcell    1
     `define       playerYstartcell    13
 `else
-    `define       playerXstartcell    37
-    `define       playerYstartcell    48
+    `define       playerXstartcell    32 //37
+    `define       playerYstartcell    39 //48
 `endif
     // Player's full start position is in the middle of a cell:
     //SMELL: defines instead of params, to work around Quartus bug: https://community.intel.com/t5/Intel-Quartus-Prime-Software/BUG/td-p/1483047
@@ -174,6 +181,7 @@ module raybox(
 
             debug_frame_count = 0;
 
+`ifdef DIRECT_VECTOR_UPDATE
         end else if (v < SCREEN_HEIGHT && write_new_position) begin
             // Host wants to directly set new vectors:
             //SMELL: This should be handled properly with a synchronised loading method,
@@ -185,7 +193,14 @@ module raybox(
             facingY <= new_facingY;
             vplaneX <= new_vplaneX;
             vplaneY <= new_vplaneY;
-        end else if (tick && !write_new_position) begin
+`endif //DIRECT_VECTOR_UPDATE
+
+`ifdef MOVEMENT_BUTTONS
+        end else if (tick
+            `ifdef DIRECT_VECTOR_UPDATE
+            && !write_new_position
+            `endif //DIRECT_VECTOR_UPDATE
+        ) begin
             // Animation can happen here.
             // Handle player motion:
             //SMELL: This isn't properly implemented:
@@ -207,8 +222,11 @@ module raybox(
                 playerY <= playerY - playerMove;
             else if (moveB)
                 playerY <= playerY + playerMove;
+`endif //MOVEMENT_BUTTONS
+
         end
     end
+
     always @(negedge reset) begin
         $display("playerX=%f, playerY=%f", `Freal(playerX), `Freal(playerY));
         $display("facingX=%f, facingY=%f", `Freal(facingX), `Freal(facingY));
