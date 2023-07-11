@@ -37,6 +37,11 @@ module raybox(
     input               moveB,
 `endif //MOVEMENT_BUTTONS
 
+    // SPI interface for updating vectors:
+    input               i_sclk,
+    input               i_mosi,
+    input               i_ss_n,
+
 `ifdef DIRECT_VECTOR_UPDATE
     input               write_new_position, // If true, use the `new_*` values to overwrite the design's registers.
     input   `FExt       new_playerX,
@@ -158,7 +163,73 @@ module raybox(
             debug_frame_count = debug_frame_count + 1;
         end
     end
-    
+
+
+
+    // SPI logic...
+    //SMELL: Wrap all this in a parameterised SPI module.
+    //SMELL: ------------------ NEED TO IMPLEMENT/RESPECT RESETS FOR ALL THIS?? --------------------
+    // The following synchronises the 3 SPI inputs using the typical DFF pair approach
+    // for metastability avoidance at the 2nd stage, but note that for SCLK and /SS this
+    // rolls into a 3rd stage so that we can use the state of stages 2 and 3 to detect
+    // a rising or falling edge...
+
+    // Sync SCLK using 3-bit shift reg (to catch rising/falling edges):
+    reg [2:0] sclk_buffer; always @(posedge clk) sclk_buffer <= {sclk_buffer[1:0], i_sclk};
+    wire sclk_rise = (sclk_buffer==2'b01);
+    wire sclk_fall = (sclk_buffer==2'b10);
+
+    // Sync /SS using 3-bit shift reg too, as above:
+    reg [2:0] ss_buffer; always @(posedge clk) ss_buffer <= {ss_buffer[1:0], i_ss_n};
+    wire ss_active = ~ss_buffer[1];
+    wire ss_rise = (sclk_buffer==2'b01);
+    wire ss_fall = (sclk_buffer==2'b10);
+
+    // Sync MOSI; only needs 2 bits because we don't care about edges:
+    reg [1:0] mosi_buffer; always @(posedge clk) mosi_buffer <= {mosi_buffer[0], i_mosi};
+    wire mosi = mosi_buffer[1];
+    //SMELL: Do we actually need to sync MOSI? It should be stable when we check it at the SCLK rising edge.
+
+    // Expect each complete SPI frame to be 144 bits, made up of (in order, 24 bits each, MSB first):
+    // playerX, playerY,
+    // facingX, facingY,
+    // vplaneX, vplaneY.
+    reg [7:0] spi_counter; // Enough to do 144 counts.
+    reg [143:0] spi_buffer; // Receives the SPI bit stream.
+    reg spi_done;
+    wire spi_frame_end = (spi_counter == 143); // Indicates whether we've reached the SPI frame end or not.
+    always @(posedge clk) begin
+        if (!ss_active) begin
+            // When /SS is not asserted, reset the SPI bit stream counter:
+            spi_counter <= 0;
+        end else if (sclk_rise) begin
+            // We detected a SCLK rising edge, while /SS is asserted, so this means we're clocking in a bit...
+            // SPI bit stream counter wraps around after the expected number of bits, so that the master can
+            // theoretically keep sending frames while /SS is asserted.
+            spi_counter <= spi_frame_end ? 0 : (spi_counter + 1);
+            spi_buffer <= {spi_buffer[142:0], mosi};
+        end
+    end
+
+    wire spi_load_ready = (h == 799 && v == 478);
+    //SMELL: Vectors get updated at pixel (0,479), i.e. last visible line, so that we get the "freshest"
+    // value, but we make sure we've locked it in before the tracer needs it.
+
+    reg [143:0] ready_buffer; // Last buffered (complete) SPI bit stream that is ready for next loading as vector data.
+    always @(posedge clk) begin
+        if (!spi_load_ready) begin //SMELL: We shouldn't stop this logic during spi_load_ready, should we??
+            if (spi_done) begin
+                // Last bit was clocked in, so copy the whole spi_buffer into our ready_buffer:
+                ready_buffer <= spi_buffer;
+                spi_done <= 0;
+            end else if (ss_active && sclk_rise && spi_frame_end) begin
+                // Last bit is being clocked in...
+                spi_done <= 1;
+            end
+        end
+    end
+
+
 `ifdef QUARTUS
     // These are used by de0nano implementation to do temporal ordered dithering:
     assign px0 = h[0];
@@ -180,6 +251,14 @@ module raybox(
             vplaneY <= vplaneYstart;
 
             debug_frame_count = 0;
+        end else if (spi_load_ready) begin
+            // Current VGA frame is ending, so load cursor_x and cursor_y from our ready_buffer:
+            playerX <= ready_buffer[143:120];
+            playerY <= ready_buffer[119: 96];
+            facingX <= ready_buffer[ 95: 72];
+            facingY <= ready_buffer[ 71: 48];
+            vplaneX <= ready_buffer[ 47: 24];
+            vplaneY <= ready_buffer[ 23:  0];
 
 `ifdef DIRECT_VECTOR_UPDATE
         end else if (v < SCREEN_HEIGHT && write_new_position) begin
