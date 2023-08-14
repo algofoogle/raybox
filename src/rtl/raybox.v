@@ -176,14 +176,14 @@ module raybox(
 
     // Sync SCLK using 3-bit shift reg (to catch rising/falling edges):
     reg [2:0] sclk_buffer; always @(posedge clk) sclk_buffer <= {sclk_buffer[1:0], i_sclk};
-    wire sclk_rise = (sclk_buffer==2'b01);
-    wire sclk_fall = (sclk_buffer==2'b10);
+    wire sclk_rise = (sclk_buffer[2:1]==2'b01);
+    wire sclk_fall = (sclk_buffer[2:1]==2'b10);
 
     // Sync /SS using 3-bit shift reg too, as above:
     reg [2:0] ss_buffer; always @(posedge clk) ss_buffer <= {ss_buffer[1:0], i_ss_n};
     wire ss_active = ~ss_buffer[1];
-    wire ss_rise = (sclk_buffer==2'b01);
-    wire ss_fall = (sclk_buffer==2'b10);
+    // wire ss_rise = (sclk_buffer==2'b01);
+    // wire ss_fall = (sclk_buffer==2'b10);
 
     // Sync MOSI; only needs 2 bits because we don't care about edges:
     reg [1:0] mosi_buffer; always @(posedge clk) mosi_buffer <= {mosi_buffer[0], i_mosi};
