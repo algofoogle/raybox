@@ -48,8 +48,10 @@ CC = g++
 SIM_LDFLAGS = -lSDL2 -lSDL2_ttf -lSDL2_image
 ifeq ($(OS),Windows_NT)
 	SIM_EXE = sim/obj_dir/V$(TOP).exe
+	VERILATOR = verilator_bin.exe
 else
 	SIM_EXE = sim/obj_dir/V$(TOP)
+	VERILATOR = verilator
 endif
 XDEFINES := $(DEF:%=+define+%)
 # A fixed seed value for sim_seed:
@@ -90,7 +92,7 @@ sim_seed: $(SIM_EXE)
 # Build main simulation exe:
 $(SIM_EXE): $(SIM_VSOURCES) $(MAIN_VSOURCES) sim/sim_main.cpp sim/main_tb.h sim/testbench.h
 	echo $(RSEED)
-	verilator \
+	$(VERILATOR) \
 		--Mdir sim/obj_dir \
 		-Isrc/rtl \
 		-Isim \

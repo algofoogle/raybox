@@ -73,8 +73,9 @@ module map_rom #(
     `else // not QUARTUS
         // $readmemh works OK with 2D array in everything else:
         reg [7:0]   dummy_memory [0:MAXCOL][0:MAXROW];
-        initial $error("NEED TO CHANGE REFERENCE BELOW TO USE MAP_FILE");
-        initial $readmemh("assets/map_64x64.hex", dummy_memory);
+        // initial $error("NEED TO CHANGE REFERENCE BELOW TO USE MAP_FILE");
+        // initial $readmemh("assets/map_64x64.hex", dummy_memory);
+        initial $readmemh(`MAP_FILE, dummy_memory);
         assign val = dummy_memory[col][row][BITS-1:0];
     `endif // QUARTUS
     

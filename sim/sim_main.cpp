@@ -32,6 +32,7 @@ using namespace std;
 
 #define HILITE      0b0001'1111
 
+//#define DESIGN_DIRECT_VECTOR_ACCESS   // Defined=new_playerX etc are exposed; else=SPI only.
 //#define DEBUG_BUTTON_INPUTS
 //#define USE_SPEAKER
 
@@ -98,6 +99,11 @@ using namespace std;
 
 // The MAIN_TB class that includes specifics about running our design in simulation:
 #include "main_tb.h"
+
+
+//SMELL: This doesn't do anything besides keeping certain linkers happy.
+// See: https://veripool.org/guide/latest/faq.html#why-do-i-get-undefined-reference-to-sc-time-stamp
+double sc_time_stamp() { return 0; }
 
 #ifdef WINDOWS
 //SMELL: For some reason, when building this under Windows, it stops building as a console command
@@ -382,12 +388,16 @@ void recalc_override_vectors(const Uint8* k, int mouseX, int mouseY) {
 
 void set_override_vectors() {
   // Convert gOvers to fixed-point values we can write back into the design:
+#ifdef DESIGN_DIRECT_VECTOR_ACCESS
   TB->m_core->new_playerX = double2fixed(gOvers.px);
   TB->m_core->new_playerY = double2fixed(gOvers.py);
   TB->m_core->new_facingX = double2fixed(gOvers.fx);
   TB->m_core->new_facingY = double2fixed(gOvers.fy);
   TB->m_core->new_vplaneX = double2fixed(gOvers.vx);
   TB->m_core->new_vplaneY = double2fixed(gOvers.vy);
+#else//!DESIGN_DIRECT_VECTOR_ACCESS
+  #warning SPI vector access not yet implemented
+#endif//DESIGN_DIRECT_VECTOR_ACCESS
 }
 
 
@@ -735,6 +745,7 @@ void process_sdl_events() {
             switch (e.key.keysym.sym) {
               // Toggle map input:
               case SDLK_INSERT: gLockInputs[LOCK_MAP] ^= 1; break;
+#ifdef DESIGN_DIRECT_VECTOR_ACCESS
               // Toggle direction inputs (and turn off any that are opposing):
               case SDLK_UP:     if (KMOD_SHIFT & e.key.keysym.mod) TB->m_core->moveF=1; else if( (gLockInputs[LOCK_F] ^= 1) ) gLockInputs[LOCK_B] = false; break;
               case SDLK_DOWN:   if (KMOD_SHIFT & e.key.keysym.mod) TB->m_core->moveB=1; else if( (gLockInputs[LOCK_B] ^= 1) ) gLockInputs[LOCK_F] = false; break;
@@ -742,6 +753,9 @@ void process_sdl_events() {
               case SDLK_RIGHT:  if (KMOD_SHIFT & e.key.keysym.mod) TB->m_core->moveR=1; else if( (gLockInputs[LOCK_R] ^= 1) ) gLockInputs[LOCK_L] = false; break;
               // NOTE: If SHIFT is held, send momentary (1-frame) signal inputs instead of locks.
               //SMELL: This won't work if we're calling handle_control_inputs more often than once per frame...?
+#else//!DESIGN_DIRECT_VECTOR_ACCESS
+              #warning SPI vector access not yet implemented
+#endif//DESIGN_DIRECT_VECTOR_ACCESS
             }
           }
           break;
@@ -751,16 +765,31 @@ void process_sdl_events() {
 }
 
 
+void set_write_new_position(int assert) {
+#ifdef DESIGN_DIRECT_VECTOR_ACCESS
+  TB->m_core->write_new_position = assert;
+#else//!DESIGN_DIRECT_VECTOR_ACCESS
+  #warning SPI vector access not yet implemented
+#endif//DESIGN_DIRECT_VECTOR_ACCESS
+}
+
+
+
 //NOTE: handle_control_inputs is called twice; once with `true` before process_sdl_events, then once after with `false`.
 void handle_control_inputs(bool prepare) {
   if (prepare) {
     // PREPARE mode: Clear all inputs, so process_sdl_events has a chance to preset MOMENTARY inputs:
     TB->m_core->reset     = 0;
     TB->m_core->show_map  = 0;
-    TB->m_core->moveF     = 0;
-    TB->m_core->moveL     = 0;
-    TB->m_core->moveB     = 0;
-    TB->m_core->moveR     = 0;
+  #ifdef DESIGN_DIRECT_VECTOR_ACCESS
+      TB->m_core->moveF     = 0;
+      TB->m_core->moveL     = 0;
+      TB->m_core->moveB     = 0;
+      TB->m_core->moveR     = 0;
+  #else//!DESIGN_DIRECT_VECTOR_ACCESS
+      #warning SPI vector access not yet implemented
+  #endif//DESIGN_DIRECT_VECTOR_ACCESS
+
 #ifdef DEBUG_BUTTON_INPUTS
     TB->m_core->debugA    = 0;
     TB->m_core->debugB    = 0;
@@ -787,18 +816,24 @@ void handle_control_inputs(bool prepare) {
     if (gOverrideVectors) {
       recalc_override_vectors(keystate, mouseX, mouseY);
       set_override_vectors();
-      TB->m_core->write_new_position = 1;
+      set_write_new_position(1);
     } else {
-      TB->m_core->write_new_position = 0;
+      set_write_new_position(0);
     }
 
     TB->m_core->show_debug = 1;
     TB->m_core->reset     |= keystate[SDL_SCANCODE_R];
     TB->m_core->show_map  |= keystate[SDL_SCANCODE_TAB ] | gLockInputs[LOCK_MAP];
-    TB->m_core->moveF     |= keystate[SDL_SCANCODE_W   ] | gLockInputs[LOCK_F];
-    TB->m_core->moveL     |= keystate[SDL_SCANCODE_A   ] | gLockInputs[LOCK_L];
-    TB->m_core->moveB     |= keystate[SDL_SCANCODE_S   ] | gLockInputs[LOCK_B];
-    TB->m_core->moveR     |= keystate[SDL_SCANCODE_D   ] | gLockInputs[LOCK_R];
+
+    #ifdef DESIGN_DIRECT_VECTOR_ACCESS
+      TB->m_core->moveF     |= keystate[SDL_SCANCODE_W   ] | gLockInputs[LOCK_F];
+      TB->m_core->moveL     |= keystate[SDL_SCANCODE_A   ] | gLockInputs[LOCK_L];
+      TB->m_core->moveB     |= keystate[SDL_SCANCODE_S   ] | gLockInputs[LOCK_B];
+      TB->m_core->moveR     |= keystate[SDL_SCANCODE_D   ] | gLockInputs[LOCK_R];
+    #else//!DESIGN_DIRECT_VECTOR_ACCESS
+      #warning SPI vector access not yet implemented
+    #endif//DESIGN_DIRECT_VECTOR_ACCESS
+
 #ifdef DEBUG_BUTTON_INPUTS
     TB->m_core->debugA    |= keystate[SDL_SCANCODE_KP_4];
     TB->m_core->debugB    |= keystate[SDL_SCANCODE_KP_6];
